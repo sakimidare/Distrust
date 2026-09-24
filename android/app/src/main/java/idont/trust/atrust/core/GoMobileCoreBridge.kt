@@ -6,6 +6,8 @@ import java.lang.reflect.Method
 import java.lang.reflect.Proxy
 import org.json.JSONObject
 import idont.trust.atrust.logging.Logger
+import idont.trust.atrust.service.ConnectionRuntime
+import idont.trust.atrust.service.ConnectionState
 
 /**
  * Compatibility bridge for the current upstream gomobile AAR.
@@ -50,6 +52,12 @@ class GoMobileCoreBridge : CoreBridge {
             val callback = Proxy.newProxyInstance(callbackType.classLoader, arrayOf(callbackType)) { _, invoked, values ->
                 if (invoked.name.equals("onLog", ignoreCase = true)) {
                     val line = values?.firstOrNull()?.toString().orEmpty()
+                    if (line.contains("session-expired event", ignoreCase = true)) {
+                        Logger.e("Session", "aTrust session expired; interactive login is required")
+                        ConnectionRuntime.update(
+                            ConnectionState.Failed("aTrust 会话已过期，请重新完成认证"),
+                        )
+                    }
                     when {
                         line.contains("panic", true) || line.contains("fatal", true) || line.contains("failed", true) -> Logger.e("GoCore", line)
                         line.contains("warning", true) || line.contains("error", true) -> Logger.w("GoCore", line)
