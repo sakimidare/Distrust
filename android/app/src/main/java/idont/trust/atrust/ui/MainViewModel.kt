@@ -9,9 +9,9 @@ import idont.trust.atrust.core.GoMobileCoreBridge
 import idont.trust.atrust.model.ConnectionProfile
 import idont.trust.atrust.service.ConnectionRuntime
 import idont.trust.atrust.service.ConnectionState
-import idont.trust.atrust.service.AppLog
+import idont.trust.atrust.logging.Logger
 import idont.trust.atrust.service.AuthRuntime
-import idont.trust.atrust.service.LogEntry
+import idont.trust.atrust.logging.LogEntry
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
@@ -32,26 +32,41 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         ConnectionProfile(),
     )
     val connectionState: StateFlow<ConnectionState> = ConnectionRuntime.state
-    val logs: StateFlow<List<LogEntry>> = AppLog.entries
+    val logs: StateFlow<List<LogEntry>> = Logger.entries
     val authChallenge: StateFlow<String?> = AuthRuntime.challenge
     val authDiscovery = mutableAuthDiscovery.asStateFlow()
 
     fun save(profile: ConnectionProfile) {
-        viewModelScope.launch { repository.save(profile) }
+        Logger.i("Profile", "Saving profile; mode=${profile.mode}, protocol=${profile.protocol}, server=${profile.server}:${profile.port}")
+        viewModelScope.launch {
+            runCatching { repository.save(profile) }
+                .onSuccess { Logger.d("Profile", "Profile saved") }
+                .onFailure { Logger.e("Profile", "Failed to save profile", it) }
+        }
     }
 
-    fun clearLogs() = AppLog.clear()
+    fun clearLogs() = Logger.clear()
     fun submitAuth(responseJson: String) = AuthRuntime.respond(responseJson)
-    fun cancelAuth() = AuthRuntime.cancel()
+    fun cancelAuth() {
+        Logger.w("Auth", "Authentication challenge cancelled by user")
+        AuthRuntime.cancel()
+    }
 
     fun fetchAuthMethods(server: String, port: Int) {
         if (mutableAuthDiscovery.value is AuthDiscoveryState.Loading) return
+        Logger.i("AuthDiscovery", "Fetching authentication methods from $server:$port")
         viewModelScope.launch {
             mutableAuthDiscovery.value = AuthDiscoveryState.Loading
             val result = withContext(Dispatchers.IO) { core.fetchAuthMethods(server, port) }
             mutableAuthDiscovery.value = result.fold(
-                onSuccess = { AuthDiscoveryState.Success(it) },
-                onFailure = { AuthDiscoveryState.Error(it.cause?.message ?: it.message ?: "获取认证方式失败") },
+                onSuccess = {
+                    Logger.i("AuthDiscovery", "Server returned ${it.size} authentication methods")
+                    AuthDiscoveryState.Success(it)
+                },
+                onFailure = {
+                    Logger.e("AuthDiscovery", "Failed to fetch authentication methods", it)
+                    AuthDiscoveryState.Error(it.cause?.message ?: it.message ?: "获取认证方式失败")
+                },
             )
         }
     }

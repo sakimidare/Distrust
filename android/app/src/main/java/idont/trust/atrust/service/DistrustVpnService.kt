@@ -15,6 +15,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import idont.trust.atrust.logging.Logger
 
 class DistrustVpnService : VpnService() {
     private val scope = CoroutineScope(Job() + Dispatchers.IO)
@@ -23,10 +24,12 @@ class DistrustVpnService : VpnService() {
 
     override fun onCreate() {
         super.onCreate()
+        Logger.i("VpnService", "Service created")
         ServiceNotifications.createChannels(this)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        Logger.d("VpnService", "onStartCommand; action=${intent?.action}, startId=$startId")
         when (intent?.action) {
             ACTION_STOP -> disconnect()
             ACTION_START -> connect()
@@ -35,11 +38,13 @@ class DistrustVpnService : VpnService() {
     }
 
     override fun onRevoke() {
+        Logger.w("VpnService", "VPN permission revoked by Android")
         disconnect()
         super.onRevoke()
     }
 
     override fun onDestroy() {
+        Logger.i("VpnService", "Service destroyed")
         closeResources()
         scope.cancel()
         super.onDestroy()
@@ -49,6 +54,7 @@ class DistrustVpnService : VpnService() {
         if (ConnectionRuntime.state.value is ConnectionState.Connecting ||
             ConnectionRuntime.state.value is ConnectionState.Connected
         ) {
+            Logger.w("VpnService", "Ignoring duplicate connect request; state=${ConnectionRuntime.state.value}")
             return
         }
         startForeground(
@@ -62,12 +68,13 @@ class DistrustVpnService : VpnService() {
             ),
         )
         ConnectionRuntime.update(ConnectionState.Connecting(ConnectionMode.VPN))
-        AppLog.info("开始建立系统 VPN 连接")
+        Logger.i("VpnService", "Starting system VPN connection")
 
         scope.launch {
             val repository = ProfileRepository(applicationContext)
             val profile = repository.profile.first()
             val negotiated = core.login(profile, AuthRuntime::request).getOrElse { error ->
+                Logger.e("VpnService", "Core login failed", error)
                 fail(error.userMessage())
                 return@launch
             }
@@ -85,20 +92,25 @@ class DistrustVpnService : VpnService() {
             val routes = negotiated.routes.ifEmpty { profile.routes }
             routes.forEach { route ->
                 parseCidr(route)?.let { (address, prefix) -> builder.addRoute(address, prefix) }
+                    ?: Logger.w("VpnService", "Ignoring invalid route '$route'")
             }
             val dnsServers = negotiated.dnsServers.ifEmpty { profile.dnsServers }
-            dnsServers.forEach { dns -> runCatching { builder.addDnsServer(dns) } }
+            dnsServers.forEach { dns ->
+                runCatching { builder.addDnsServer(dns) }
+                    .onFailure { Logger.w("VpnService", "Ignoring invalid DNS '$dns'", it) }
+            }
 
             tun = builder.establish()
             if (tun == null) {
                 fail("Android 未能创建 TUN 接口，请重新授权 VPN")
                 return@launch
             }
+            Logger.d("VpnService", "Android TUN established; mtu=${negotiated.mtu}")
 
             ConnectionRuntime.update(
                 ConnectionState.Connected(ConnectionMode.VPN, negotiated.address),
             )
-            AppLog.info("VPN 已连接，隧道地址 ${negotiated.address}")
+            Logger.i("VpnService", "VPN connected; address=${negotiated.address}, routes=${routes.size}, dns=${dnsServers.size}")
             val result = core.runTun(checkNotNull(tun).fd)
             if (result.isFailure && ConnectionRuntime.state.value is ConnectionState.Connected) {
                 fail(result.exceptionOrNull().userMessage())
@@ -110,7 +122,7 @@ class DistrustVpnService : VpnService() {
 
     private fun disconnect() {
         ConnectionRuntime.update(ConnectionState.Disconnecting)
-        AppLog.info("正在断开 VPN")
+        Logger.i("VpnService", "Disconnecting VPN")
         closeResources()
         ConnectionRuntime.update(ConnectionState.Disconnected)
         stopForeground(STOP_FOREGROUND_REMOVE)
@@ -119,13 +131,14 @@ class DistrustVpnService : VpnService() {
 
     private fun fail(message: String) {
         closeResources()
-        AppLog.error(message)
+        Logger.e("VpnService", message)
         ConnectionRuntime.update(ConnectionState.Failed(message))
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
 
     private fun closeResources() {
+        Logger.d("VpnService", "Closing TUN and core resources")
         runCatching { tun?.close() }
         tun = null
         core.stop()

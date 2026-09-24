@@ -9,6 +9,7 @@ import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
+import idont.trust.atrust.logging.Logger
 
 class SecretStore(context: Context) {
     private val preferences = context.getSharedPreferences("encrypted_secrets", Context.MODE_PRIVATE)
@@ -31,11 +32,14 @@ class SecretStore(context: Context) {
             val cipher = Cipher.getInstance(TRANSFORMATION)
             cipher.init(Cipher.DECRYPT_MODE, getOrCreateKey(), GCMParameterSpec(128, iv))
             cipher.doFinal(encrypted).decodeToString()
+        }.onFailure {
+            Logger.e("SecretStore", "Failed to decrypt secret '$name'; returning empty value", it)
         }.getOrDefault("")
     }
 
     private fun write(name: String, value: String) {
         if (value.isEmpty()) {
+            Logger.d("SecretStore", "Removing encrypted secret '$name'")
             preferences.edit().remove(name).apply()
             return
         }
@@ -46,10 +50,12 @@ class SecretStore(context: Context) {
         preferences.edit()
             .putString(name, Base64.encodeToString(payload, Base64.NO_WRAP))
             .apply()
+        Logger.d("SecretStore", "Encrypted secret '$name' updated")
     }
 
     private fun getOrCreateKey(): SecretKey {
         (keyStore.getKey(KEY_ALIAS, null) as? SecretKey)?.let { return it }
+        Logger.i("SecretStore", "Generating Android Keystore key")
         return KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, KEYSTORE).run {
             init(
                 KeyGenParameterSpec.Builder(

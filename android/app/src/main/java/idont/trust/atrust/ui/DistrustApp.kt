@@ -81,9 +81,10 @@ import idont.trust.atrust.model.ConnectionProfile
 import idont.trust.atrust.model.ProfileValidator
 import idont.trust.atrust.model.VpnProtocol
 import idont.trust.atrust.service.ConnectionState
-import idont.trust.atrust.service.LogEntry
-import idont.trust.atrust.service.LogLevel
+import idont.trust.atrust.logging.LogEntry
+import idont.trust.atrust.logging.LogLevel
 import idont.trust.atrust.util.ProxyConfigFormatter
+import idont.trust.atrust.logging.Logger
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import org.json.JSONObject
@@ -123,6 +124,9 @@ fun DistrustApp(
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = backStackEntry?.destination
+    LaunchedEffect(currentDestination?.route) {
+        currentDestination?.route?.let { Logger.d("Navigation", "Destination changed; route=$it") }
+    }
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(connectionState) {
         if (connectionState is ConnectionState.Failed) {
@@ -588,18 +592,22 @@ private fun LogScreen(
         }
         logs.asReversed().forEach { entry ->
             val color = when (entry.level) {
+                LogLevel.VERBOSE, LogLevel.DEBUG -> MaterialTheme.colorScheme.onSurfaceVariant
                 LogLevel.INFO -> MaterialTheme.colorScheme.onSurface
                 LogLevel.WARNING -> MaterialTheme.colorScheme.tertiary
-                LogLevel.ERROR -> MaterialTheme.colorScheme.error
+                LogLevel.ERROR, LogLevel.ASSERT -> MaterialTheme.colorScheme.error
             }
             OutlinedCard(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
-                        "${entry.timestamp.atZone(ZoneId.systemDefault()).format(formatter)} · ${entry.level}",
+                        "${entry.timestamp.atZone(ZoneId.systemDefault()).format(formatter)} · ${entry.level} · ${entry.tag}",
                         style = MaterialTheme.typography.labelSmall,
                         color = color,
                     )
                     Text(entry.message, style = MaterialTheme.typography.bodyMedium)
+                    entry.throwable?.let {
+                        Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                    }
                 }
             }
         }

@@ -5,6 +5,7 @@ import idont.trust.atrust.model.VpnProtocol
 import java.lang.reflect.Method
 import java.lang.reflect.Proxy
 import org.json.JSONObject
+import idont.trust.atrust.logging.Logger
 
 /**
  * Compatibility bridge for the current upstream gomobile AAR.
@@ -32,7 +33,15 @@ class GoMobileCoreBridge : CoreBridge {
         localHttp = startProxy != null,
     )
 
+    init {
+        Logger.i(
+            "GoCore",
+            "Core bridge initialized; loaded=${mobileClass != null}, easyConnect=${capabilities.easyConnectVpn}, aTrust=${capabilities.aTrustVpn}, proxy=${capabilities.localSocks5}",
+        )
+    }
+
     override fun fetchAuthMethods(server: String, port: Int): Result<List<AuthMethod>> = runCatching {
+        Logger.d("GoCore", "Invoking FetchAuthMethods; server=$server:$port")
         val method = checkNotNull(fetchAuthMethods) { "当前核心不支持获取服务器认证方式" }
         val result = JSONObject(method.invoke(null, server, port.toLong())?.toString().orEmpty())
         check(result.optBoolean("ok")) { result.optString("errorMessage", "获取认证方式失败") }
@@ -50,9 +59,11 @@ class GoMobileCoreBridge : CoreBridge {
                 )
             }
         }
+            .also { Logger.d("GoCore", "Decoded ${it.size} authentication methods") }
     }
 
     override fun login(profile: ConnectionProfile, onChallenge: (String) -> String): Result<NegotiatedTunnel> = runCatching {
+        Logger.i("GoCore", "Preparing tunnel; protocol=${profile.protocol}")
         if (prepareWithCallback != null || prepare != null) {
             val result = invokeJson(prepareWithCallback ?: checkNotNull(prepare), profile, onChallenge)
             return@runCatching NegotiatedTunnel(
@@ -73,6 +84,7 @@ class GoMobileCoreBridge : CoreBridge {
     }
 
     override fun runTun(fileDescriptor: Int): Result<Unit> = runCatching {
+        Logger.i("GoCore", "Starting TUN stack; fd=$fileDescriptor")
         val method = checkNotNull(startStack) { "当前核心不支持 Android TUN" }
         val parameter = method.parameterTypes.singleOrNull()
         if (parameter == java.lang.Long.TYPE) {
@@ -83,6 +95,7 @@ class GoMobileCoreBridge : CoreBridge {
     }
 
     override fun startLocalProxy(profile: ConnectionProfile, onChallenge: (String) -> String): Result<ProxySession> = runCatching {
+        Logger.i("GoCore", "Starting local proxy; protocol=${profile.protocol}, socks=127.0.0.1:${profile.socksPort}, http=127.0.0.1:${profile.httpPort}")
         val result = invokeJson(
             startProxyWithCallback ?: checkNotNull(startProxy) { "当前核心尚未导出 SOCKS5/HTTP 代理服务" },
             profile,
@@ -96,7 +109,9 @@ class GoMobileCoreBridge : CoreBridge {
     }
 
     override fun stop() {
+        Logger.i("GoCore", "Stopping active core session")
         runCatching { logout?.invoke(null) }
+            .onFailure { Logger.e("GoCore", "Core stop failed", it) }
     }
 
     private fun Class<*>?.method(name: String, vararg types: Class<*>): Method? =
@@ -156,6 +171,7 @@ class GoMobileCoreBridge : CoreBridge {
         check(result.optBoolean("ok")) {
             result.optString("errorMessage", "核心操作失败")
         }
+        Logger.d("GoCore", "Core operation succeeded; method=${method.name}")
         return result
     }
 

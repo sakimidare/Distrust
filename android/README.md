@@ -27,6 +27,7 @@ Distrust 提供两种互斥运行方式：
 - [x] `VpnService` 授权、前台服务和 TUN 生命周期骨架
 - [x] 本地代理前台服务边界
 - [x] 连接状态、脱敏运行日志和通知停止操作
+- [x] 同时输出 Logcat 与 Compose UI 的全局 Logger、异常堆栈和敏感字段脱敏
 - [x] SOCKS5/HTTP 端口配置和 Mihomo 配置片段导出
 - [x] 固定源码版本的 DistrustCore 子模块和 AAR 构建脚本
 - [x] Go mobile JSON session API 与能力协商

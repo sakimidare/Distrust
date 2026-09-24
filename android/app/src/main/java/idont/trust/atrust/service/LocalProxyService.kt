@@ -15,6 +15,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import idont.trust.atrust.logging.Logger
 
 class LocalProxyService : Service() {
     private val scope = CoroutineScope(Job() + Dispatchers.IO)
@@ -22,12 +23,14 @@ class LocalProxyService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        Logger.i("ProxyService", "Service created")
         ServiceNotifications.createChannels(this)
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        Logger.d("ProxyService", "onStartCommand; action=${intent?.action}, startId=$startId")
         when (intent?.action) {
             ACTION_STOP -> disconnect()
             ACTION_START -> connect()
@@ -36,6 +39,7 @@ class LocalProxyService : Service() {
     }
 
     override fun onDestroy() {
+        Logger.i("ProxyService", "Service destroyed")
         core.stop()
         scope.cancel()
         super.onDestroy()
@@ -53,7 +57,7 @@ class LocalProxyService : Service() {
             ),
         )
         ConnectionRuntime.update(ConnectionState.Connecting(ConnectionMode.LOCAL_PROXY))
-        AppLog.info("开始启动本地代理服务")
+        Logger.i("ProxyService", "Starting local proxy service")
         scope.launch {
             val repository = ProfileRepository(applicationContext)
             val profile = repository.profile.first()
@@ -68,10 +72,10 @@ class LocalProxyService : Service() {
                             proxy.socksAddress.ifEmpty { proxy.httpAddress },
                         ),
                     )
-                    AppLog.info("本地代理已监听 127.0.0.1:${profile.socksPort}")
+                    Logger.i("ProxyService", "Local proxy listening; socks=${proxy.socksAddress}, http=${proxy.httpAddress}")
                 },
                 onFailure = { error ->
-                    AppLog.error(error.cause?.message ?: error.message ?: "本地代理启动失败")
+                    Logger.e("ProxyService", error.cause?.message ?: error.message ?: "本地代理启动失败", error)
                     ConnectionRuntime.update(
                         ConnectionState.Failed(
                             error.cause?.message ?: error.message ?: "本地代理启动失败",
@@ -86,7 +90,7 @@ class LocalProxyService : Service() {
 
     private fun disconnect() {
         ConnectionRuntime.update(ConnectionState.Disconnecting)
-        AppLog.info("正在停止本地代理")
+        Logger.i("ProxyService", "Stopping local proxy service")
         core.stop()
         ConnectionRuntime.update(ConnectionState.Disconnected)
         stopForeground(STOP_FOREGROUND_REMOVE)

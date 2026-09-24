@@ -29,6 +29,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -38,6 +39,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.unit.dp
 import idont.trust.atrust.model.ConnectionProfile
 import java.net.URI
+import idont.trust.atrust.logging.Logger
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
@@ -50,6 +52,9 @@ fun SsoLoginScreen(
     val resolvedLoginUrl = remember(loginUrl, profile.server, profile.port, profile.loginDomain) {
         resolveLoginUrl(loginUrl, profile)
     }
+    LaunchedEffect(resolvedLoginUrl) {
+        Logger.i("SSO", "Opening embedded login page; url=$resolvedLoginUrl")
+    }
     var webView by remember { mutableStateOf<WebView?>(null) }
     var currentUrl by remember(resolvedLoginUrl) { mutableStateOf(resolvedLoginUrl) }
     var completed by remember(resolvedLoginUrl) { mutableStateOf(false) }
@@ -59,6 +64,7 @@ fun SsoLoginScreen(
     fun complete(url: String) {
         if (!completed) {
             completed = true
+            Logger.i("SSO", "Captured SSO callback; url=$url")
             webView?.stopLoading()
             onCallback(url)
         }
@@ -134,6 +140,7 @@ fun SsoLoginScreen(
                             val knownCallbackPath = uri.path == "/passport/v1/auth/cas" ||
                                 uri.path == "/passport/v1/auth/httpsOauth2"
                             if (isServerUrl(uri, profile) && (request.isRedirect || knownCallbackPath)) {
+                                Logger.d("SSO", "Intercepting redirect before navigation; redirect=${request.isRedirect}, path=${uri.path}")
                                 complete(uri.toString())
                                 return true
                             }
@@ -141,6 +148,7 @@ fun SsoLoginScreen(
                         }
 
                         override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
+                            Logger.d("SSO", "Page started; url=$url")
                             currentUrl = url
                             pageError = null
                         }
@@ -155,6 +163,7 @@ fun SsoLoginScreen(
                             error: WebResourceError,
                         ) {
                             if (request.isForMainFrame) {
+                                Logger.e("SSO", "Main frame load failed; code=${error.errorCode}, url=${request.url}, description=${error.description}")
                                 pageError = "页面加载失败：${error.description}（${error.errorCode}）"
                             }
                         }
@@ -165,6 +174,7 @@ fun SsoLoginScreen(
                             errorResponse: WebResourceResponse,
                         ) {
                             if (request.isForMainFrame) {
+                                Logger.e("SSO", "HTTP error ${errorResponse.statusCode}; url=${request.url}")
                                 pageError = "服务器返回 HTTP ${errorResponse.statusCode} ${errorResponse.reasonPhrase.orEmpty()}"
                             }
                         }
@@ -175,10 +185,12 @@ fun SsoLoginScreen(
                             error: SslError,
                         ) {
                             handler.cancel()
+                            Logger.e("SSO", "TLS validation failed; code=${error.primaryError}, url=${error.url}")
                             pageError = "TLS 证书校验失败（${error.primaryError}），为保护账号安全已停止加载"
                         }
                     }
                     if (resolvedLoginUrl.isBlank()) {
+                        Logger.e("SSO", "Resolved login URL is empty")
                         pageError = "服务器未提供有效的 SSO 登录地址"
                     } else {
                         loadUrl(resolvedLoginUrl)
@@ -190,6 +202,7 @@ fun SsoLoginScreen(
 
     DisposableEffect(webView) {
         onDispose {
+            Logger.d("SSO", "Destroying embedded WebView")
             webView?.run {
                 stopLoading()
                 loadUrl("about:blank")

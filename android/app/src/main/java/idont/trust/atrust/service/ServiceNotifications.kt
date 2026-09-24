@@ -9,6 +9,7 @@ import android.content.Intent
 import androidx.core.app.NotificationCompat
 import idont.trust.atrust.MainActivity
 import idont.trust.atrust.R
+import idont.trust.atrust.logging.Logger
 
 object ServiceNotifications {
     const val VPN_CHANNEL = "distrust_vpn"
@@ -17,6 +18,7 @@ object ServiceNotifications {
     const val PROXY_NOTIFICATION = 1002
 
     fun createChannels(context: Context) {
+        Logger.d("Notifications", "Creating service notification channels")
         val manager = context.getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(
             NotificationChannel(
@@ -41,6 +43,7 @@ object ServiceNotifications {
         content: String,
         stopIntent: Intent,
     ): Notification {
+        Logger.d("Notifications", "Building foreground notification; channel=$channel, title=$title")
         val openApp = PendingIntent.getActivity(
             context,
             0,

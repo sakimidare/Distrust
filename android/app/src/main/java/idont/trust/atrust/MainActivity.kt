@@ -19,6 +19,7 @@ import idont.trust.atrust.service.DistrustVpnService
 import idont.trust.atrust.ui.DistrustApp
 import idont.trust.atrust.ui.MainViewModel
 import idont.trust.atrust.ui.theme.DistrustTheme
+import idont.trust.atrust.logging.Logger
 
 class MainActivity : ComponentActivity() {
     private val viewModel by viewModels<MainViewModel>()
@@ -26,6 +27,7 @@ class MainActivity : ComponentActivity() {
     private val vpnPermission = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult(),
     ) { result ->
+        Logger.i("MainActivity", "VPN permission result=${result.resultCode}")
         if (result.resultCode == RESULT_OK) {
             DistrustVpnService.start(this)
         }
@@ -37,6 +39,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        Logger.i("MainActivity", "onCreate; restored=${savedInstanceState != null}")
         enableEdgeToEdge()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
@@ -70,6 +73,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun connect(profile: ConnectionProfile) {
+        Logger.i("MainActivity", "Connect requested; mode=${profile.mode}, protocol=${profile.protocol}, server=${profile.server}:${profile.port}")
         viewModel.save(profile)
         if (profile.mode == ConnectionMode.LOCAL_PROXY) {
             ConnectionServiceController.start(this, ConnectionMode.LOCAL_PROXY)
@@ -77,9 +81,26 @@ class MainActivity : ComponentActivity() {
         }
         val permissionIntent: Intent? = VpnService.prepare(this)
         if (permissionIntent == null) {
+            Logger.d("MainActivity", "VPN permission already granted")
             DistrustVpnService.start(this)
         } else {
+            Logger.i("MainActivity", "Requesting Android VPN permission")
             vpnPermission.launch(permissionIntent)
         }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        Logger.d("MainActivity", "onStart")
+    }
+
+    override fun onStop() {
+        Logger.d("MainActivity", "onStop")
+        super.onStop()
+    }
+
+    override fun onDestroy() {
+        Logger.d("MainActivity", "onDestroy; changingConfigurations=$isChangingConfigurations")
+        super.onDestroy()
     }
 }

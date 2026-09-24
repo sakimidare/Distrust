@@ -12,6 +12,7 @@ import idont.trust.atrust.model.ConnectionProfile
 import idont.trust.atrust.model.VpnProtocol
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import idont.trust.atrust.logging.Logger
 
 private val Context.profileDataStore by preferencesDataStore(name = "profile")
 
@@ -21,6 +22,7 @@ class ProfileRepository(private val context: Context) {
     val profile: Flow<ConnectionProfile> = context.profileDataStore.data.map(::toProfile)
 
     suspend fun save(profile: ConnectionProfile) {
+        Logger.d("ProfileRepository", "Persisting profile '${profile.name}'")
         secrets.writePassword(profile.password)
         secrets.writeClientData(profile.clientData)
         secrets.writeTotpSecret(profile.totpSecret)
@@ -48,6 +50,7 @@ class ProfileRepository(private val context: Context) {
     }
 
     fun updateClientData(clientData: String) {
+        Logger.d("ProfileRepository", "Updating encrypted aTrust client session; present=${clientData.isNotEmpty()}")
         secrets.writeClientData(clientData)
     }
 
