@@ -12,6 +12,7 @@ fi
 
 mkdir -p "$(dirname "$OUTPUT")"
 export PATH="$(go env GOPATH)/bin:$PATH"
+export GOPROXY="${GOPROXY:-https://goproxy.cn,direct}"
 
 if ! command -v gomobile >/dev/null 2>&1; then
     go install golang.org/x/mobile/cmd/gomobile@latest

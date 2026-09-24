@@ -73,6 +73,7 @@ class GoMobileCoreBridge : CoreBridge {
                 routes = result.stringList("routes"),
                 dnsServers = result.stringList("dnsServers"),
                 clientData = result.optString("clientData"),
+                domainResources = result.stringList("domainResources"),
             )
         }
         require(profile.protocol == VpnProtocol.EASYCONNECT) { "当前 Go AAR 尚未导出 aTrust 移动接口" }

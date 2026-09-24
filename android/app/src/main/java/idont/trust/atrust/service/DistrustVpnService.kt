@@ -34,7 +34,11 @@ class DistrustVpnService : VpnService() {
             ACTION_STOP -> disconnect()
             ACTION_START -> connect()
         }
-        return START_NOT_STICKY
+        if (intent == null && ConnectionRuntime.state.value is ConnectionState.Disconnected) {
+            Logger.i("VpnService", "Android recreated sticky VPN service; reconnecting from saved profile")
+            connect()
+        }
+        return START_STICKY
     }
 
     override fun onRevoke() {
@@ -81,6 +85,15 @@ class DistrustVpnService : VpnService() {
             if (negotiated.clientData.isNotEmpty()) {
                 repository.updateClientData(negotiated.clientData)
             }
+            if (negotiated.domainResources.isNotEmpty()) {
+                Logger.w(
+                    "VpnService",
+                    "Server advertised ${negotiated.domainResources.size} domain resources. " +
+                        "The current Android L3 TUN path cannot preserve domain routing metadata; " +
+                        "domain-only resources may return HTTP 421. Prefer local proxy mode until tun2socks/Fake-IP integration is complete.",
+                )
+                Logger.d("VpnService", "Domain resources=${negotiated.domainResources.joinToString()}")
+            }
 
             val builder = Builder()
                 .setSession("Distrust · ${profile.name}")
@@ -111,7 +124,10 @@ class DistrustVpnService : VpnService() {
                 ConnectionState.Connected(ConnectionMode.VPN, negotiated.address),
             )
             Logger.i("VpnService", "VPN connected; address=${negotiated.address}, routes=${routes.size}, dns=${dnsServers.size}")
-            val result = core.runTun(checkNotNull(tun).fd)
+            val goOwnedDescriptor = ParcelFileDescriptor.dup(checkNotNull(tun).fileDescriptor)
+            val goOwnedFd = goOwnedDescriptor.detachFd()
+            Logger.d("VpnService", "Transferred duplicated TUN descriptor to Go; fd=$goOwnedFd")
+            val result = core.runTun(goOwnedFd)
             if (result.isFailure && ConnectionRuntime.state.value is ConnectionState.Connected) {
                 fail(result.exceptionOrNull().userMessage())
             } else {

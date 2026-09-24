@@ -35,7 +35,11 @@ class LocalProxyService : Service() {
             ACTION_STOP -> disconnect()
             ACTION_START -> connect()
         }
-        return START_NOT_STICKY
+        if (intent == null && ConnectionRuntime.state.value is ConnectionState.Disconnected) {
+            Logger.i("ProxyService", "Android recreated sticky proxy service; reconnecting from saved profile")
+            connect()
+        }
+        return START_STICKY
     }
 
     override fun onDestroy() {

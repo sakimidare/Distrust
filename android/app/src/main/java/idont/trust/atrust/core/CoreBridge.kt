@@ -23,6 +23,7 @@ data class NegotiatedTunnel(
     val routes: List<String> = emptyList(),
     val dnsServers: List<String> = emptyList(),
     val clientData: String = "",
+    val domainResources: List<String> = emptyList(),
 )
 
 data class ProxySession(

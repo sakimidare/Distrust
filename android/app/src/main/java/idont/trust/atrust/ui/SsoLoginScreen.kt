@@ -3,6 +3,9 @@ package idont.trust.atrust.ui
 import android.annotation.SuppressLint
 import android.graphics.Bitmap
 import android.net.Uri
+import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.net.http.SslError
 import android.webkit.CookieManager
 import android.webkit.WebChromeClient
@@ -202,8 +205,19 @@ fun SsoLoginScreen(
                 releasedWebView.webChromeClient = null
                 releasedWebView.webViewClient = WebViewClient()
                 releasedWebView.removeAllViews()
-                releasedWebView.destroy()
                 if (webView === releasedWebView) webView = null
+                if (Build.MANUFACTURER.equals("Xiaomi", ignoreCase = true) ||
+                    Build.MANUFACTURER.equals("Redmi", ignoreCase = true)
+                ) {
+                    // HyperOS/Adreno has a reproducible fdsan double-close in
+                    // RenderThread when WebView.destroy() races surface release.
+                    Logger.w("SSO", "Skipping explicit WebView.destroy() on Xiaomi to avoid vendor fdsan crash")
+                } else {
+                    Handler(Looper.getMainLooper()).postDelayed(
+                        { runCatching { releasedWebView.destroy() } },
+                        500,
+                    )
+                }
             },
         )
     }
