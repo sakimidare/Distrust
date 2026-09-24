@@ -22,6 +22,8 @@ class GoMobileCoreBridge : CoreBridge {
     private val prepareWithCallback: Method? = mobileClass.methodNamed("prepareWithCallback", 2)
     private val startProxyWithCallback: Method? = mobileClass.methodNamed("startProxyWithCallback", 2)
     private val fetchAuthMethods: Method? = mobileClass.methodNamed("fetchAuthMethods", 2)
+    private val setLogCallback: Method? = mobileClass.methodNamed("setLogCallback", 1)
+    private val resourceSnapshot: Method? = mobileClass.methodNamed("resourceSnapshot", 0)
     private val startStack: Method? = mobileClass.method("startStack", Long::class.javaPrimitiveType!!)
         ?: mobileClass.method("startStack", Int::class.javaPrimitiveType!!)
     private val logout: Method? = mobileClass.method("logout")
@@ -34,10 +36,34 @@ class GoMobileCoreBridge : CoreBridge {
     )
 
     init {
+        installCoreLogCallback()
         Logger.i(
             "GoCore",
             "Core bridge initialized; loaded=${mobileClass != null}, easyConnect=${capabilities.easyConnectVpn}, aTrust=${capabilities.aTrustVpn}, proxy=${capabilities.localSocks5}",
         )
+    }
+
+    private fun installCoreLogCallback() {
+        val method = setLogCallback ?: return
+        runCatching {
+            val callbackType = method.parameterTypes.single()
+            val callback = Proxy.newProxyInstance(callbackType.classLoader, arrayOf(callbackType)) { _, invoked, values ->
+                if (invoked.name.equals("onLog", ignoreCase = true)) {
+                    val line = values?.firstOrNull()?.toString().orEmpty()
+                    when {
+                        line.contains("panic", true) || line.contains("fatal", true) || line.contains("failed", true) -> Logger.e("GoCore", line)
+                        line.contains("warning", true) || line.contains("error", true) -> Logger.w("GoCore", line)
+                        else -> Logger.i("GoCore", line)
+                    }
+                }
+                null
+            }
+            method.invoke(null, callback)
+        }.onSuccess {
+            Logger.d("GoCore", "Installed Go log callback")
+        }.onFailure {
+            Logger.e("GoCore", "Failed to install Go log callback", it)
+        }
     }
 
     override fun fetchAuthMethods(server: String, port: Int): Result<List<AuthMethod>> = runCatching {
@@ -74,7 +100,7 @@ class GoMobileCoreBridge : CoreBridge {
                 dnsServers = result.stringList("dnsServers"),
                 clientData = result.optString("clientData"),
                 domainResources = result.stringList("domainResources"),
-            )
+            ).also { logResourceSnapshot() }
         }
         require(profile.protocol == VpnProtocol.EASYCONNECT) { "当前 Go AAR 尚未导出 aTrust 移动接口" }
         val method = checkNotNull(login) { "未安装 zju-connect Android AAR" }
@@ -106,7 +132,7 @@ class GoMobileCoreBridge : CoreBridge {
             socksAddress = result.optString("socksAddress"),
             httpAddress = result.optString("httpAddress"),
             clientData = result.optString("clientData"),
-        )
+        ).also { logResourceSnapshot() }
     }
 
     override fun stop() {
@@ -183,5 +209,37 @@ class GoMobileCoreBridge : CoreBridge {
                 values.optString(index).takeIf(String::isNotBlank)?.let(::add)
             }
         }
+    }
+
+    private fun logResourceSnapshot() {
+        val method = resourceSnapshot ?: return
+        runCatching {
+            val snapshot = JSONObject(method.invoke(null)?.toString().orEmpty())
+            val domains = snapshot.optJSONArray("domainResources")
+            val ips = snapshot.optJSONArray("ipResources")
+            val dns = snapshot.optJSONObject("dnsResources")
+            Logger.i(
+                "Policy",
+                "Resource snapshot: virtualIp=${snapshot.optString("virtualIp")}, " +
+                    "dnsServers=${snapshot.optJSONArray("dnsServers")?.length() ?: 0}, " +
+                    "ipRules=${ips?.length() ?: 0}, domainRules=${domains?.length() ?: 0}, " +
+                    "dnsRules=${dns?.length() ?: 0}",
+            )
+            if (domains != null) {
+                for (index in 0 until domains.length()) {
+                    val rule = domains.optJSONObject(index) ?: continue
+                    val domain = rule.optString("domain")
+                    if (index < 200 || domain.contains("seu.edu.cn", ignoreCase = true)) {
+                        Logger.d(
+                            "Policy",
+                            "domain=$domain protocol=${rule.optString("protocol")} " +
+                                "ports=${rule.optInt("portMin")}-${rule.optInt("portMax")} " +
+                                "appId=${rule.optString("appId")} nodeGroup=${rule.optString("nodeGroupId")} " +
+                                "tcpPrefL3=${rule.optBoolean("enableTcpPrefL3")} addrPretend=${rule.optBoolean("addrPretend")}",
+                        )
+                    }
+                }
+            }
+        }.onFailure { Logger.e("Policy", "Failed to read resource snapshot", it) }
     }
 }
