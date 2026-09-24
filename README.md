@@ -8,8 +8,8 @@ Distrust 是从 EZ4Connect 衍生的 Android 校园 VPN 客户端项目。Androi
 [`android/`](android/)，开发状态和核心集成说明见
 [`android/README.md`](android/README.md)。
 
-> 当前 Android 版本仍处于早期开发阶段。现有上游 AAR 只具备基础
-> EasyConnect TUN 能力，aTrust 和 SOCKS5/HTTP 本地代理需要扩展 Go 移动接口后启用。
+> 当前 Android 版本仍处于早期开发阶段。仓库已固定 DistrustCore 子模块并加入
+> aTrust 密码认证及 SOCKS5/HTTP 移动接口；交互式认证和真机兼容性仍在逐步实现。
 
 ## 原 EZ4Connect 桌面客户端
 

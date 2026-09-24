@@ -55,13 +55,17 @@ class LocalProxyService : Service() {
         ConnectionRuntime.update(ConnectionState.Connecting(ConnectionMode.LOCAL_PROXY))
         AppLog.info("开始启动本地代理服务")
         scope.launch {
-            val profile = ProfileRepository(applicationContext).profile.first()
+            val repository = ProfileRepository(applicationContext)
+            val profile = repository.profile.first()
             core.startLocalProxy(profile).fold(
-                onSuccess = {
+                onSuccess = { proxy ->
+                    if (proxy.clientData.isNotEmpty()) {
+                        repository.updateClientData(proxy.clientData)
+                    }
                     ConnectionRuntime.update(
                         ConnectionState.Connected(
                             ConnectionMode.LOCAL_PROXY,
-                            "SOCKS5 127.0.0.1:${profile.socksPort}",
+                            proxy.socksAddress.ifEmpty { proxy.httpAddress },
                         ),
                     )
                     AppLog.info("本地代理已监听 127.0.0.1:${profile.socksPort}")

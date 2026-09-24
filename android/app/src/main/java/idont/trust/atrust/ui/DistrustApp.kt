@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -255,7 +254,7 @@ private fun ProxyEndpointsCard(profile: ConnectionProfile) {
             Text("SOCKS5  ·  127.0.0.1:${profile.socksPort}")
             Text("HTTP     ·  127.0.0.1:${profile.httpPort}")
             Text(
-                "需要扩展上游 Go 移动接口后才能实际监听端口。",
+                "本地代理不会占用 VpnService；请在 Clash/Mihomo 中排除 Distrust 应用以避免回环。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -396,7 +395,7 @@ private fun AboutScreen(modifier: Modifier = Modifier) {
         Icon(Icons.Default.Shield, null, Modifier.size(64.dp), tint = MaterialTheme.colorScheme.primary)
         Text("Distrust", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold)
         Text("EZ4Connect 的原生 Android 客户端", style = MaterialTheme.typography.titleMedium)
-        Text("当前里程碑已建立 Compose、配置安全存储、VpnService 和本地代理服务边界。aTrust、认证回调及 SOCKS5/HTTP 核心能力将在后续里程碑接入。")
+        Text("已集成固定版本的 DistrustCore：支持 EasyConnect、aTrust 密码认证、系统 VPN 以及不占用 VpnService 的 SOCKS5/HTTP 本地代理。交互式认证将在后续里程碑接入。")
         HorizontalDivider()
         Text("包名  idont.trust.atrust", style = MaterialTheme.typography.bodyMedium)
         Text("许可证  GPL-3.0 / 上游核心 AGPL-3.0", style = MaterialTheme.typography.bodyMedium)

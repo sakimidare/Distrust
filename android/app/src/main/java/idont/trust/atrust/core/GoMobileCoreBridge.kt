@@ -3,6 +3,7 @@ package idont.trust.atrust.core
 import idont.trust.atrust.model.ConnectionProfile
 import idont.trust.atrust.model.VpnProtocol
 import java.lang.reflect.Method
+import org.json.JSONObject
 
 /**
  * Compatibility bridge for the current upstream gomobile AAR.
@@ -14,21 +15,32 @@ import java.lang.reflect.Method
 class GoMobileCoreBridge : CoreBridge {
     private val mobileClass = runCatching { Class.forName("mobile.Mobile") }.getOrNull()
     private val login: Method? = mobileClass.method("login", String::class.java, String::class.java, String::class.java)
+    private val prepare: Method? = mobileClass.method("prepare", String::class.java)
+    private val startProxy: Method? = mobileClass.method("startProxy", String::class.java)
     private val startStack: Method? = mobileClass.method("startStack", Long::class.javaPrimitiveType!!)
         ?: mobileClass.method("startStack", Int::class.javaPrimitiveType!!)
     private val logout: Method? = mobileClass.method("logout")
 
     override val capabilities = CoreCapabilities(
-        easyConnectVpn = login != null && startStack != null,
-        aTrustVpn = false,
-        localSocks5 = false,
-        localHttp = false,
+        easyConnectVpn = (prepare != null || login != null) && startStack != null,
+        aTrustVpn = prepare != null && startStack != null,
+        localSocks5 = startProxy != null,
+        localHttp = startProxy != null,
     )
 
     override fun login(profile: ConnectionProfile): Result<NegotiatedTunnel> = runCatching {
-        require(profile.protocol == VpnProtocol.EASYCONNECT) {
-            "当前 Go AAR 尚未导出 aTrust 移动接口"
+        if (prepare != null) {
+            val result = invokeJson(prepare, profile)
+            return@runCatching NegotiatedTunnel(
+                address = result.getString("address"),
+                prefixLength = result.optInt("prefixLength", 32),
+                mtu = result.optInt("mtu", 1400),
+                routes = result.stringList("routes"),
+                dnsServers = result.stringList("dnsServers"),
+                clientData = result.optString("clientData"),
+            )
         }
+        require(profile.protocol == VpnProtocol.EASYCONNECT) { "当前 Go AAR 尚未导出 aTrust 移动接口" }
         val method = checkNotNull(login) { "未安装 zju-connect Android AAR" }
         val address = method.invoke(null, "${profile.server}:${profile.port}", profile.username, profile.password)
             ?.toString().orEmpty()
@@ -46,9 +58,17 @@ class GoMobileCoreBridge : CoreBridge {
         }
     }
 
-    override fun startLocalProxy(profile: ConnectionProfile): Result<Unit> = Result.failure(
-        UnsupportedOperationException("上游移动核心尚未导出 SOCKS5/HTTP 代理服务"),
-    )
+    override fun startLocalProxy(profile: ConnectionProfile): Result<ProxySession> = runCatching {
+        val result = invokeJson(
+            checkNotNull(startProxy) { "当前核心尚未导出 SOCKS5/HTTP 代理服务" },
+            profile,
+        )
+        ProxySession(
+            socksAddress = result.optString("socksAddress"),
+            httpAddress = result.optString("httpAddress"),
+            clientData = result.optString("clientData"),
+        )
+    }
 
     override fun stop() {
         runCatching { logout?.invoke(null) }
@@ -59,4 +79,33 @@ class GoMobileCoreBridge : CoreBridge {
             candidate.name.equals(name, ignoreCase = true) &&
                 candidate.parameterTypes.contentEquals(types)
         }
+
+    private fun invokeJson(method: Method, profile: ConnectionProfile): JSONObject {
+        val config = JSONObject()
+            .put("protocol", if (profile.protocol == VpnProtocol.ATRUST) "atrust" else "easyconnect")
+            .put("server", profile.server)
+            .put("port", profile.port)
+            .put("username", profile.username)
+            .put("password", profile.password)
+            .put("authType", profile.authType)
+            .put("loginDomain", profile.loginDomain)
+            .put("clientData", profile.clientData)
+            .put("socksBind", "127.0.0.1:${profile.socksPort}")
+            .put("httpBind", "127.0.0.1:${profile.httpPort}")
+            .put("remoteDns", profile.dnsServers.firstOrNull().orEmpty())
+        val result = JSONObject(method.invoke(null, config.toString())?.toString().orEmpty())
+        check(result.optBoolean("ok")) {
+            result.optString("errorMessage", "核心操作失败")
+        }
+        return result
+    }
+
+    private fun JSONObject.stringList(name: String): List<String> {
+        val values = optJSONArray(name) ?: return emptyList()
+        return buildList {
+            for (index in 0 until values.length()) {
+                values.optString(index).takeIf(String::isNotBlank)?.let(::add)
+            }
+        }
+    }
 }

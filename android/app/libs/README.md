@@ -1,9 +1,10 @@
 # Go core AAR
 
-Place a locally built `zju-connect.aar` in this directory to enable the current
-EasyConnect proof-of-concept backend. The AAR itself is intentionally ignored by
-Git so releases remain reproducible from an explicitly pinned upstream source.
+The preferred core source is pinned as the `android/core` submodule. Run
+`../scripts/build-go-core.sh` from this directory's parent project, or invoke the
+Gradle `buildGoCore` task, to generate `android/core/build/distrust-core.aar`.
 
-The current upstream mobile API does **not** support aTrust or local SOCKS5/HTTP
-proxy mode yet. Distrust detects this at runtime and reports the missing
-capability instead of pretending a connection succeeded.
+For compatibility testing, a legacy AAR may still be placed at
+`android/app/libs/zju-connect.aar`. It is used only when the pinned DistrustCore
+AAR is absent. AAR binaries are intentionally ignored by Git; release artifacts
+must be produced from the pinned AGPL source.

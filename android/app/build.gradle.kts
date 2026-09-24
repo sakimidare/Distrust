@@ -60,8 +60,18 @@ dependencies {
     debugImplementation(composeBom)
     debugImplementation("androidx.compose.ui:ui-tooling")
 
-    val localCore = file("libs/zju-connect.aar")
-    if (localCore.exists()) {
-        implementation(files(localCore))
+    implementation(files(rootProject.file("core/build/distrust-core.aar")))
+}
+
+val buildGoCore by tasks.registering(Exec::class) {
+    group = "build"
+    description = "Build the pinned DistrustCore source into an Android AAR"
+    workingDir(rootProject.projectDir)
+    commandLine("bash", "scripts/build-go-core.sh")
+}
+
+tasks.named("preBuild") {
+    if (!providers.gradleProperty("skipGoCore").isPresent) {
+        dependsOn(buildGoCore)
     }
 }

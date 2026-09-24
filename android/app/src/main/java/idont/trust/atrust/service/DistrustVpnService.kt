@@ -65,10 +65,14 @@ class DistrustVpnService : VpnService() {
         AppLog.info("开始建立系统 VPN 连接")
 
         scope.launch {
-            val profile = ProfileRepository(applicationContext).profile.first()
+            val repository = ProfileRepository(applicationContext)
+            val profile = repository.profile.first()
             val negotiated = core.login(profile).getOrElse { error ->
                 fail(error.userMessage())
                 return@launch
+            }
+            if (negotiated.clientData.isNotEmpty()) {
+                repository.updateClientData(negotiated.clientData)
             }
 
             val builder = Builder()
@@ -78,10 +82,12 @@ class DistrustVpnService : VpnService() {
 
             // The core's own gateway sockets must never re-enter this VPN.
             runCatching { builder.addDisallowedApplication(packageName) }
-            profile.routes.forEach { route ->
+            val routes = negotiated.routes.ifEmpty { profile.routes }
+            routes.forEach { route ->
                 parseCidr(route)?.let { (address, prefix) -> builder.addRoute(address, prefix) }
             }
-            profile.dnsServers.forEach { dns -> runCatching { builder.addDnsServer(dns) } }
+            val dnsServers = negotiated.dnsServers.ifEmpty { profile.dnsServers }
+            dnsServers.forEach { dns -> runCatching { builder.addDnsServer(dns) } }
 
             tun = builder.establish()
             if (tun == null) {

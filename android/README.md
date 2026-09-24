@@ -2,6 +2,8 @@
 
 原生 Android 校园 VPN 客户端，包名：`idont.trust.atrust`。
 
+配套核心 Fork：<https://github.com/sakimidare/DistrustCore>
+
 ## 设计目标
 
 Distrust 提供两种互斥运行方式：
@@ -23,10 +25,12 @@ Distrust 提供两种互斥运行方式：
 - [x] 本地代理前台服务边界
 - [x] 连接状态、脱敏运行日志和通知停止操作
 - [x] SOCKS5/HTTP 端口配置和 Mihomo 配置片段导出
-- [x] 可选加载本地 `zju-connect.aar` 的 EasyConnect PoC 桥接
-- [ ] Go mobile session/callback API
-- [ ] aTrust 密码认证
-- [ ] SOCKS5 与 HTTP 实际监听
+- [x] 固定源码版本的 DistrustCore 子模块和 AAR 构建脚本
+- [x] Go mobile JSON session API 与能力协商
+- [x] aTrust 密码认证核心入口
+- [x] 不占用 VpnService 的 SOCKS5 与 HTTP 实际监听入口
+- [x] EasyConnect 旧移动 API 兼容桥
+- [ ] 结构化异步认证回调 API
 - [ ] 图形验证码、短信、TOTP、RADIUS、CAS/OAuth2
 - [ ] 动态路由、DNS、Fake IP 与服务端资源策略
 - [ ] 多配置管理、导入导出和自动重连
@@ -60,15 +64,21 @@ android/app/build/outputs/apk/debug/app-debug.apk
 
 ## Go 核心
 
-将从固定上游提交构建的 AAR 放到：
+初始化固定版本的核心源码并生成 AAR：
 
-```text
-android/app/libs/zju-connect.aar
+```bash
+git submodule update --init --recursive
+cd android
+./gradlew assembleDebug
 ```
 
+`preBuild` 会先从固定源码生成 `android/core/build/distrust-core.aar`，随后将它嵌入 APK。
+只调试 UI 且已有 AAR 时，可通过 `-PskipGoCore` 跳过重新生成核心。
+
 没有 AAR 时，应用 UI 仍可构建和运行，但连接会明确显示“未安装核心”，不会伪造成功状态。
-当前兼容桥只声明上游真实具备的 EasyConnect VPN 能力；aTrust 和本地代理必须等新的移动
-API 落地后才会对用户启用。
+当前 Mobile API v2 已提供 EasyConnect、aTrust 密码认证、Android TUN、SOCKS5 和 HTTP
+本地代理。CAS/OAuth2、短信、图形验证码和 RADIUS 仍需异步 Challenge API，因此不会被标记
+为已支持。
 
 计划中的移动核心接口：
 

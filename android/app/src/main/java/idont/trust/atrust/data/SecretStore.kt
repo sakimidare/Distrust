@@ -14,8 +14,13 @@ class SecretStore(context: Context) {
     private val preferences = context.getSharedPreferences("encrypted_secrets", Context.MODE_PRIVATE)
     private val keyStore = KeyStore.getInstance(KEYSTORE).apply { load(null) }
 
-    fun readPassword(): String {
-        val encoded = preferences.getString(PASSWORD, null) ?: return ""
+    fun readPassword(): String = read(PASSWORD)
+    fun readClientData(): String = read(CLIENT_DATA)
+    fun writePassword(password: String) = write(PASSWORD, password)
+    fun writeClientData(clientData: String) = write(CLIENT_DATA, clientData)
+
+    private fun read(name: String): String {
+        val encoded = preferences.getString(name, null) ?: return ""
         return runCatching {
             val payload = Base64.decode(encoded, Base64.NO_WRAP)
             val ivLength = payload.first().toInt() and 0xff
@@ -27,17 +32,17 @@ class SecretStore(context: Context) {
         }.getOrDefault("")
     }
 
-    fun writePassword(password: String) {
-        if (password.isEmpty()) {
-            preferences.edit().remove(PASSWORD).apply()
+    private fun write(name: String, value: String) {
+        if (value.isEmpty()) {
+            preferences.edit().remove(name).apply()
             return
         }
         val cipher = Cipher.getInstance(TRANSFORMATION)
         cipher.init(Cipher.ENCRYPT_MODE, getOrCreateKey())
-        val encrypted = cipher.doFinal(password.encodeToByteArray())
+        val encrypted = cipher.doFinal(value.encodeToByteArray())
         val payload = byteArrayOf(cipher.iv.size.toByte()) + cipher.iv + encrypted
         preferences.edit()
-            .putString(PASSWORD, Base64.encodeToString(payload, Base64.NO_WRAP))
+            .putString(name, Base64.encodeToString(payload, Base64.NO_WRAP))
             .apply()
     }
 
@@ -62,5 +67,6 @@ class SecretStore(context: Context) {
         const val KEY_ALIAS = "distrust-profile-secrets-v1"
         const val TRANSFORMATION = "AES/GCM/NoPadding"
         const val PASSWORD = "default_profile_password"
+        const val CLIENT_DATA = "default_profile_client_data"
     }
 }

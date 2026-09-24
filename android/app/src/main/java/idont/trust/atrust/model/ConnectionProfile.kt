@@ -19,9 +19,10 @@ data class ConnectionProfile(
     val username: String = "",
     val password: String = "",
     val loginDomain: String = "hitcas",
-    val authType: String = "cas",
+    val authType: String = "psw",
     val socksPort: Int = 11080,
     val httpPort: Int = 11081,
     val routes: List<String> = listOf("10.0.0.0/8"),
     val dnsServers: List<String> = listOf("10.10.0.21"),
+    val clientData: String = "",
 )

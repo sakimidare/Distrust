@@ -21,6 +21,7 @@ class ProfileRepository(private val context: Context) {
 
     suspend fun save(profile: ConnectionProfile) {
         secrets.writePassword(profile.password)
+        secrets.writeClientData(profile.clientData)
         context.profileDataStore.edit { values ->
             values[Keys.NAME] = profile.name
             values[Keys.MODE] = profile.mode.name
@@ -37,6 +38,10 @@ class ProfileRepository(private val context: Context) {
         }
     }
 
+    fun updateClientData(clientData: String) {
+        secrets.writeClientData(clientData)
+    }
+
     private fun toProfile(values: Preferences): ConnectionProfile = ConnectionProfile(
         name = values[Keys.NAME] ?: "默认配置",
         mode = values[Keys.MODE].enumOrDefault(ConnectionMode.LOCAL_PROXY),
@@ -46,11 +51,12 @@ class ProfileRepository(private val context: Context) {
         username = values[Keys.USERNAME] ?: "",
         password = secrets.readPassword(),
         loginDomain = values[Keys.LOGIN_DOMAIN] ?: "hitcas",
-        authType = values[Keys.AUTH_TYPE] ?: "cas",
+        authType = values[Keys.AUTH_TYPE] ?: "psw",
         socksPort = values[Keys.SOCKS_PORT] ?: 11080,
         httpPort = values[Keys.HTTP_PORT] ?: 11081,
         routes = values[Keys.ROUTES].linesOrDefault(listOf("10.0.0.0/8")),
         dnsServers = values[Keys.DNS].linesOrDefault(listOf("10.10.0.21")),
+        clientData = secrets.readClientData(),
     )
 
     private inline fun <reified T : Enum<T>> String?.enumOrDefault(default: T): T =
