@@ -1,0 +1,6 @@
+<resources>
+    <string name="app_name">Distrust</string>
+    <string name="vpn_notification_channel">VPN 连接</string>
+    <string name="proxy_notification_channel">本地代理</string>
+    <string name="notification_stop">断开</string>
+</resources>

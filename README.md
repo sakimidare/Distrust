@@ -1,4 +1,17 @@
-# EZ4Connect
+# Distrust
+
+Distrust 是从 EZ4Connect 衍生的 Android 校园 VPN 客户端项目。Android
+客户端使用 Kotlin、Jetpack Compose、Material 3 和 `VpnService` 原生构建，
+应用包名为 `idont.trust.atrust`。
+
+项目当前同时保留原 EZ4Connect 桌面代码作为功能和兼容性参照。Android 工程位于
+[`android/`](android/)，开发状态和核心集成说明见
+[`android/README.md`](android/README.md)。
+
+> 当前 Android 版本仍处于早期开发阶段。现有上游 AAR 只具备基础
+> EasyConnect TUN 能力，aTrust 和 SOCKS5/HTTP 本地代理需要扩展 Go 移动接口后启用。
+
+## 原 EZ4Connect 桌面客户端
 
 *前身为 HITsz Connect for Windows*
 

@@ -47,3 +47,13 @@ CMakeUserPresets.json
 /.vscode
 
 !wintun.dll
+
+# Android / Gradle
+android/.gradle/
+android/.idea/
+android/local.properties
+android/**/build/
+android/**/.cxx/
+android/app/libs/*.aar
+*.apk
+*.aab
