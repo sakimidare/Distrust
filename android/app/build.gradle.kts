@@ -68,6 +68,13 @@ val buildGoCore by tasks.registering(Exec::class) {
     description = "Build the pinned DistrustCore source into an Android AAR"
     workingDir(rootProject.projectDir)
     commandLine("bash", "scripts/build-go-core.sh")
+    inputs.files(
+        rootProject.fileTree("core") {
+            exclude(".git/**", "build/**")
+        },
+        rootProject.file("scripts/build-go-core.sh"),
+    )
+    outputs.file(rootProject.file("core/build/distrust-core.aar"))
 }
 
 tasks.named("preBuild") {

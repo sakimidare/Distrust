@@ -30,8 +30,8 @@ Distrust 提供两种互斥运行方式：
 - [x] aTrust 密码认证核心入口
 - [x] 不占用 VpnService 的 SOCKS5 与 HTTP 实际监听入口
 - [x] EasyConnect 旧移动 API 兼容桥
-- [ ] 结构化异步认证回调 API
-- [ ] 图形验证码、短信、TOTP、RADIUS、CAS/OAuth2
+- [x] 短信、TOTP、RADIUS、文本验证码和浏览器认证回调桥
+- [ ] 点选验证码画布与响应坐标
 - [ ] 动态路由、DNS、Fake IP 与服务端资源策略
 - [ ] 多配置管理、导入导出和自动重连
 - [ ] 内置 PCAP/PCAPNG 抓包
@@ -46,6 +46,7 @@ Distrust 提供两种互斥运行方式：
 - compileSdk / targetSdk 37
 - Kotlin 2.4.20
 - Compose BOM 2026.08.00
+- Go 1.26+ 与 gomobile（用于内嵌核心）
 
 不要单独把 AGP 升到 9.4，除非 Android Studio 已升级到明确支持 AGP 9.4 的版本。
 
@@ -76,9 +77,9 @@ cd android
 只调试 UI 且已有 AAR 时，可通过 `-PskipGoCore` 跳过重新生成核心。
 
 没有 AAR 时，应用 UI 仍可构建和运行，但连接会明确显示“未安装核心”，不会伪造成功状态。
-当前 Mobile API v2 已提供 EasyConnect、aTrust 密码认证、Android TUN、SOCKS5 和 HTTP
-本地代理。CAS/OAuth2、短信、图形验证码和 RADIUS 仍需异步 Challenge API，因此不会被标记
-为已支持。
+当前 Mobile API v2 已提供 EasyConnect、aTrust、Android TUN、SOCKS5、HTTP 本地代理，
+并以同步 Go 回调连接 Android 异步认证界面。短信、TOTP、RADIUS、文本验证码和外部浏览器
+认证已具备界面桥；点选验证码画布仍在开发中。
 
 计划中的移动核心接口：
 

@@ -45,13 +45,17 @@ class MainActivity : ComponentActivity() {
             val profile by viewModel.profile.collectAsStateWithLifecycle()
             val state by viewModel.connectionState.collectAsStateWithLifecycle()
             val logs by viewModel.logs.collectAsStateWithLifecycle()
+            val authChallenge by viewModel.authChallenge.collectAsStateWithLifecycle()
             DistrustTheme {
                 DistrustApp(
                     profile = profile,
                     connectionState = state,
                     logs = logs,
+                    authChallenge = authChallenge,
                     onSaveProfile = viewModel::save,
                     onClearLogs = viewModel::clearLogs,
+                    onSubmitAuth = viewModel::submitAuth,
+                    onCancelAuth = viewModel::cancelAuth,
                     onConnect = ::connect,
                     onDisconnect = {
                         ConnectionServiceController.stopAll(this)

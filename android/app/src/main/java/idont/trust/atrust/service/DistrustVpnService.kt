@@ -67,7 +67,7 @@ class DistrustVpnService : VpnService() {
         scope.launch {
             val repository = ProfileRepository(applicationContext)
             val profile = repository.profile.first()
-            val negotiated = core.login(profile).getOrElse { error ->
+            val negotiated = core.login(profile, AuthRuntime::request).getOrElse { error ->
                 fail(error.userMessage())
                 return@launch
             }

@@ -17,9 +17,9 @@ if ! command -v gomobile >/dev/null 2>&1; then
     go install golang.org/x/mobile/cmd/gomobile@latest
 fi
 
-gomobile init
 (
     cd "$CORE"
+    gomobile init
     gomobile bind -target=android -androidapi 26 -o "$OUTPUT" ./mobile
 )
 

@@ -27,8 +27,8 @@ data class ProxySession(
 interface CoreBridge {
     val capabilities: CoreCapabilities
 
-    fun login(profile: ConnectionProfile): Result<NegotiatedTunnel>
+    fun login(profile: ConnectionProfile, onChallenge: (String) -> String): Result<NegotiatedTunnel>
     fun runTun(fileDescriptor: Int): Result<Unit>
-    fun startLocalProxy(profile: ConnectionProfile): Result<ProxySession>
+    fun startLocalProxy(profile: ConnectionProfile, onChallenge: (String) -> String): Result<ProxySession>
     fun stop()
 }

@@ -1,5 +1,7 @@
 package idont.trust.atrust.ui
 
+import android.graphics.BitmapFactory
+import android.util.Base64
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,18 +19,20 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Lan
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.DeleteSweep
-import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.Button
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -48,6 +52,7 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -59,12 +64,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.Image
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalUriHandler
 import idont.trust.atrust.model.ConnectionMode
 import idont.trust.atrust.model.ConnectionProfile
 import idont.trust.atrust.model.ProfileValidator
@@ -75,11 +84,12 @@ import idont.trust.atrust.service.LogLevel
 import idont.trust.atrust.util.ProxyConfigFormatter
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import org.json.JSONObject
 
 private enum class Destination(val label: String, val icon: ImageVector) {
     HOME("连接", Icons.Default.Home),
     PROFILE("配置", Icons.Default.Settings),
-    LOGS("日志", Icons.Default.ReceiptLong),
+    LOGS("日志", Icons.AutoMirrored.Filled.ReceiptLong),
     ABOUT("关于", Icons.Default.Info),
 }
 
@@ -89,8 +99,11 @@ fun DistrustApp(
     profile: ConnectionProfile,
     connectionState: ConnectionState,
     logs: List<LogEntry>,
+    authChallenge: String?,
     onSaveProfile: (ConnectionProfile) -> Unit,
     onClearLogs: () -> Unit,
+    onSubmitAuth: (String) -> Unit,
+    onCancelAuth: () -> Unit,
     onConnect: (ConnectionProfile) -> Unit,
     onDisconnect: () -> Unit,
 ) {
@@ -100,6 +113,9 @@ fun DistrustApp(
         if (connectionState is ConnectionState.Failed) {
             snackbar.showSnackbar(connectionState.message)
         }
+    }
+    authChallenge?.let {
+        AuthChallengeDialog(it, onSubmitAuth, onCancelAuth)
     }
 
     Scaffold(
@@ -150,6 +166,93 @@ fun DistrustApp(
             }
         }
     }
+}
+
+@Composable
+private fun AuthChallengeDialog(
+    challengeJson: String,
+    onSubmit: (String) -> Unit,
+    onCancel: () -> Unit,
+) {
+    val challenge = remember(challengeJson) { runCatching { JSONObject(challengeJson) }.getOrNull() }
+    val type = challenge?.optString("type").orEmpty()
+    val payload = challenge?.optJSONObject("payload")
+    var value by remember(challengeJson) { mutableStateOf("") }
+    var skipSecondary by remember(challengeJson) { mutableStateOf(false) }
+    val uriHandler = LocalUriHandler.current
+    val title = when (type) {
+        "code" -> when (payload?.optString("kind")) {
+            "sms" -> "短信验证码"
+            "totp" -> "TOTP 验证码"
+            "radius" -> "RADIUS 动态口令"
+            else -> "认证验证码"
+        }
+        "textCaptcha" -> "图形验证码"
+        "externalLogin" -> "浏览器认证"
+        "clickCaptcha" -> "点选验证码"
+        else -> "需要继续认证"
+    }
+    AlertDialog(
+        onDismissRequest = onCancel,
+        title = { Text(title) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                payload?.optString("message")?.takeIf(String::isNotBlank)?.let { Text(it) }
+                payload?.optString("imageBase64")?.takeIf(String::isNotBlank)?.let { encoded ->
+                    runCatching {
+                        val bytes = Base64.decode(encoded, Base64.DEFAULT)
+                        BitmapFactory.decodeByteArray(bytes, 0, bytes.size).asImageBitmap()
+                    }.getOrNull()?.let { image ->
+                        Image(
+                            bitmap = image,
+                            contentDescription = "验证码图片",
+                            modifier = Modifier.fillMaxWidth().height(180.dp),
+                            contentScale = ContentScale.Fit,
+                        )
+                    }
+                }
+                if (type == "externalLogin") {
+                    FilledTonalButton(
+                        onClick = {
+                            payload?.optString("loginUrl")?.takeIf(String::isNotBlank)?.let(uriHandler::openUri)
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text("打开浏览器登录") }
+                }
+                if (type == "clickCaptcha") {
+                    Text("点选验证码画布将在下一里程碑实现。", color = MaterialTheme.colorScheme.error)
+                } else {
+                    OutlinedTextField(
+                        value = value,
+                        onValueChange = { value = it },
+                        label = { Text(if (type == "externalLogin") "登录完成后的回调 URL" else "认证响应") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = type != "externalLogin",
+                    )
+                }
+                if (payload?.optBoolean("canSkipSecondaryAuth") == true) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(skipSecondary, { skipSecondary = it })
+                        Text("跳过后续二次认证")
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = value.isNotBlank() && type != "clickCaptcha",
+                onClick = {
+                    val response = when (type) {
+                        "externalLogin" -> JSONObject().put("CallbackURL", value)
+                        "code" -> JSONObject().put("Code", value).put("SkipSecondaryAuth", skipSecondary)
+                        else -> JSONObject().put("Code", value)
+                    }
+                    onSubmit(response.toString())
+                },
+            ) { Text("提交") }
+        },
+        dismissButton = { TextButton(onClick = onCancel) { Text("取消") } },
+    )
 }
 
 @Composable

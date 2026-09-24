@@ -57,7 +57,7 @@ class LocalProxyService : Service() {
         scope.launch {
             val repository = ProfileRepository(applicationContext)
             val profile = repository.profile.first()
-            core.startLocalProxy(profile).fold(
+            core.startLocalProxy(profile, AuthRuntime::request).fold(
                 onSuccess = { proxy ->
                     if (proxy.clientData.isNotEmpty()) {
                         repository.updateClientData(proxy.clientData)

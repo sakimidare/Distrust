@@ -3,6 +3,7 @@ package idont.trust.atrust.core
 import idont.trust.atrust.model.ConnectionProfile
 import idont.trust.atrust.model.VpnProtocol
 import java.lang.reflect.Method
+import java.lang.reflect.Proxy
 import org.json.JSONObject
 
 /**
@@ -17,6 +18,8 @@ class GoMobileCoreBridge : CoreBridge {
     private val login: Method? = mobileClass.method("login", String::class.java, String::class.java, String::class.java)
     private val prepare: Method? = mobileClass.method("prepare", String::class.java)
     private val startProxy: Method? = mobileClass.method("startProxy", String::class.java)
+    private val prepareWithCallback: Method? = mobileClass.methodNamed("prepareWithCallback", 2)
+    private val startProxyWithCallback: Method? = mobileClass.methodNamed("startProxyWithCallback", 2)
     private val startStack: Method? = mobileClass.method("startStack", Long::class.javaPrimitiveType!!)
         ?: mobileClass.method("startStack", Int::class.javaPrimitiveType!!)
     private val logout: Method? = mobileClass.method("logout")
@@ -28,9 +31,9 @@ class GoMobileCoreBridge : CoreBridge {
         localHttp = startProxy != null,
     )
 
-    override fun login(profile: ConnectionProfile): Result<NegotiatedTunnel> = runCatching {
-        if (prepare != null) {
-            val result = invokeJson(prepare, profile)
+    override fun login(profile: ConnectionProfile, onChallenge: (String) -> String): Result<NegotiatedTunnel> = runCatching {
+        if (prepareWithCallback != null || prepare != null) {
+            val result = invokeJson(prepareWithCallback ?: checkNotNull(prepare), profile, onChallenge)
             return@runCatching NegotiatedTunnel(
                 address = result.getString("address"),
                 prefixLength = result.optInt("prefixLength", 32),
@@ -58,10 +61,11 @@ class GoMobileCoreBridge : CoreBridge {
         }
     }
 
-    override fun startLocalProxy(profile: ConnectionProfile): Result<ProxySession> = runCatching {
+    override fun startLocalProxy(profile: ConnectionProfile, onChallenge: (String) -> String): Result<ProxySession> = runCatching {
         val result = invokeJson(
-            checkNotNull(startProxy) { "当前核心尚未导出 SOCKS5/HTTP 代理服务" },
+            startProxyWithCallback ?: checkNotNull(startProxy) { "当前核心尚未导出 SOCKS5/HTTP 代理服务" },
             profile,
+            onChallenge,
         )
         ProxySession(
             socksAddress = result.optString("socksAddress"),
@@ -80,7 +84,16 @@ class GoMobileCoreBridge : CoreBridge {
                 candidate.parameterTypes.contentEquals(types)
         }
 
-    private fun invokeJson(method: Method, profile: ConnectionProfile): JSONObject {
+    private fun Class<*>?.methodNamed(name: String, parameterCount: Int): Method? =
+        this?.methods?.firstOrNull {
+            it.name.equals(name, ignoreCase = true) && it.parameterCount == parameterCount
+        }
+
+    private fun invokeJson(
+        method: Method,
+        profile: ConnectionProfile,
+        onChallenge: (String) -> String = { "" },
+    ): JSONObject {
         val config = JSONObject()
             .put("protocol", if (profile.protocol == VpnProtocol.ATRUST) "atrust" else "easyconnect")
             .put("server", profile.server)
@@ -93,7 +106,24 @@ class GoMobileCoreBridge : CoreBridge {
             .put("socksBind", "127.0.0.1:${profile.socksPort}")
             .put("httpBind", "127.0.0.1:${profile.httpPort}")
             .put("remoteDns", profile.dnsServers.firstOrNull().orEmpty())
-        val result = JSONObject(method.invoke(null, config.toString())?.toString().orEmpty())
+        val arguments = if (method.parameterCount == 2) {
+            val callbackType = method.parameterTypes[1]
+            val callback = Proxy.newProxyInstance(
+                callbackType.classLoader,
+                arrayOf(callbackType),
+            ) { _, invoked, values ->
+                when {
+                    invoked.name.equals("onChallenge", ignoreCase = true) ->
+                        onChallenge(values?.firstOrNull()?.toString().orEmpty())
+                    invoked.name == "toString" -> "DistrustChallengeCallback"
+                    else -> null
+                }
+            }
+            arrayOf(config.toString(), callback)
+        } else {
+            arrayOf(config.toString())
+        }
+        val result = JSONObject(method.invoke(null, *arguments)?.toString().orEmpty())
         check(result.optBoolean("ok")) {
             result.optString("errorMessage", "核心操作失败")
         }
