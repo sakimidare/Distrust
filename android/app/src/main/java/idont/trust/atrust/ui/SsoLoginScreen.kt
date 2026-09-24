@@ -3,7 +3,6 @@ package idont.trust.atrust.ui
 import android.annotation.SuppressLint
 import android.graphics.Bitmap
 import android.net.Uri
-import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.net.http.SslError
@@ -206,21 +205,25 @@ fun SsoLoginScreen(
                 releasedWebView.webViewClient = WebViewClient()
                 releasedWebView.removeAllViews()
                 if (webView === releasedWebView) webView = null
-                if (Build.MANUFACTURER.equals("Xiaomi", ignoreCase = true) ||
-                    Build.MANUFACTURER.equals("Redmi", ignoreCase = true)
-                ) {
-                    // HyperOS/Adreno has a reproducible fdsan double-close in
-                    // RenderThread when WebView.destroy() races surface release.
-                    Logger.w("SSO", "Skipping explicit WebView.destroy() on Xiaomi to avoid vendor fdsan crash")
-                } else {
-                    Handler(Looper.getMainLooper()).postDelayed(
-                        { runCatching { releasedWebView.destroy() } },
-                        500,
-                    )
-                }
+                destroyWhenDetached(releasedWebView)
             },
         )
     }
+}
+
+private fun destroyWhenDetached(webView: WebView, attemptsRemaining: Int = 5) {
+    Handler(Looper.getMainLooper()).postDelayed({
+        if (webView.isAttachedToWindow && attemptsRemaining > 0) {
+            Logger.d("SSO", "WebView is still attached; delaying destroy")
+            destroyWhenDetached(webView, attemptsRemaining - 1)
+        } else if (!webView.isAttachedToWindow) {
+            runCatching { webView.destroy() }
+                .onSuccess { Logger.d("SSO", "Embedded WebView destroyed after detach") }
+                .onFailure { Logger.e("SSO", "Failed to destroy detached WebView", it) }
+        } else {
+            Logger.w("SSO", "WebView remained attached; skipping destroy to avoid surface ownership violation")
+        }
+    }, 300)
 }
 
 private fun resolveLoginUrl(loginUrl: String, profile: ConnectionProfile): String {
