@@ -4,6 +4,9 @@ import idont.trust.atrust.model.ConnectionProfile
 import idont.trust.atrust.model.VpnProtocol
 import java.lang.reflect.Method
 import java.lang.reflect.Proxy
+import java.net.Inet4Address
+import java.net.InetAddress
+import org.json.JSONArray
 import org.json.JSONObject
 import idont.trust.atrust.logging.Logger
 import idont.trust.atrust.service.ConnectionRuntime
@@ -26,6 +29,7 @@ class GoMobileCoreBridge : CoreBridge {
     private val fetchAuthMethods: Method? = mobileClass.methodNamed("fetchAuthMethods", 2)
     private val setLogCallback: Method? = mobileClass.methodNamed("setLogCallback", 1)
     private val resourceSnapshot: Method? = mobileClass.methodNamed("resourceSnapshot", 0)
+    private val setDnsCallback: Method? = mobileClass.methodNamed("setDNSCallback", 1)
     private val startStack: Method? = mobileClass.method("startStack", Long::class.javaPrimitiveType!!)
         ?: mobileClass.method("startStack", Int::class.javaPrimitiveType!!)
     private val logout: Method? = mobileClass.method("logout")
@@ -39,10 +43,37 @@ class GoMobileCoreBridge : CoreBridge {
 
     init {
         installCoreLogCallback()
+        installSystemDnsCallback()
         Logger.i(
             "GoCore",
             "Core bridge initialized; loaded=${mobileClass != null}, easyConnect=${capabilities.easyConnectVpn}, aTrust=${capabilities.aTrustVpn}, proxy=${capabilities.localSocks5}",
         )
+    }
+
+    private fun installSystemDnsCallback() {
+        val method = setDnsCallback ?: return
+        runCatching {
+            val callbackType = method.parameterTypes.single()
+            val callback = Proxy.newProxyInstance(callbackType.classLoader, arrayOf(callbackType)) { _, invoked, values ->
+                if (invoked.name.equals("resolve", ignoreCase = true)) {
+                    val host = values?.firstOrNull()?.toString().orEmpty()
+                    runCatching {
+                        val addresses = InetAddress.getAllByName(host)
+                            .filterIsInstance<Inet4Address>()
+                            .mapNotNull { it.hostAddress }
+                        Logger.d("SystemDNS", "host=$host answers=$addresses")
+                        JSONArray(addresses).toString()
+                    }.onFailure {
+                        Logger.w("SystemDNS", "Failed to resolve $host", it)
+                    }.getOrDefault("[]")
+                } else null
+            }
+            method.invoke(null, callback)
+        }.onSuccess {
+            Logger.d("GoCore", "Installed Android system DNS callback")
+        }.onFailure {
+            Logger.e("GoCore", "Failed to install Android system DNS callback", it)
+        }
     }
 
     private fun installCoreLogCallback() {
