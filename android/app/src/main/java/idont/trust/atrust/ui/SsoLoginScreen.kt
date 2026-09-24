@@ -28,7 +28,6 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -197,20 +196,16 @@ fun SsoLoginScreen(
                     }
                 }
             },
+            onRelease = { releasedWebView ->
+                Logger.d("SSO", "Releasing embedded WebView after it left composition")
+                releasedWebView.stopLoading()
+                releasedWebView.webChromeClient = null
+                releasedWebView.webViewClient = WebViewClient()
+                releasedWebView.removeAllViews()
+                releasedWebView.destroy()
+                if (webView === releasedWebView) webView = null
+            },
         )
-    }
-
-    DisposableEffect(webView) {
-        onDispose {
-            Logger.d("SSO", "Destroying embedded WebView")
-            webView?.run {
-                stopLoading()
-                loadUrl("about:blank")
-                clearHistory()
-                removeAllViews()
-                destroy()
-            }
-        }
     }
 }
 
