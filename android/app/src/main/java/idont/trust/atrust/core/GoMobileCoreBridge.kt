@@ -272,6 +272,22 @@ class GoMobileCoreBridge : CoreBridge {
                     )
                 }
             }
+            if (dns != null) {
+                val names = dns.keys()
+                while (names.hasNext()) {
+                    val domain = names.next()
+                    val addresses = dns.optJSONArray(domain)
+                    Logger.d(
+                        "Policy",
+                        "dns-resource domain=$domain addresses=" +
+                            buildList {
+                                if (addresses != null) {
+                                    for (index in 0 until addresses.length()) add(addresses.optString(index))
+                                }
+                            }.joinToString(),
+                    )
+                }
+            }
         }.onFailure { Logger.e("Policy", "Failed to read resource snapshot", it) }
     }
 }
