@@ -16,8 +16,10 @@ class SecretStore(context: Context) {
 
     fun readPassword(): String = read(PASSWORD)
     fun readClientData(): String = read(CLIENT_DATA)
+    fun readTotpSecret(): String = read(TOTP_SECRET)
     fun writePassword(password: String) = write(PASSWORD, password)
     fun writeClientData(clientData: String) = write(CLIENT_DATA, clientData)
+    fun writeTotpSecret(secret: String) = write(TOTP_SECRET, secret)
 
     private fun read(name: String): String {
         val encoded = preferences.getString(name, null) ?: return ""
@@ -68,5 +70,6 @@ class SecretStore(context: Context) {
         const val TRANSFORMATION = "AES/GCM/NoPadding"
         const val PASSWORD = "default_profile_password"
         const val CLIENT_DATA = "default_profile_client_data"
+        const val TOTP_SECRET = "default_profile_totp_secret"
     }
 }

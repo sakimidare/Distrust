@@ -20,6 +20,7 @@ class GoMobileCoreBridge : CoreBridge {
     private val startProxy: Method? = mobileClass.method("startProxy", String::class.java)
     private val prepareWithCallback: Method? = mobileClass.methodNamed("prepareWithCallback", 2)
     private val startProxyWithCallback: Method? = mobileClass.methodNamed("startProxyWithCallback", 2)
+    private val fetchAuthMethods: Method? = mobileClass.methodNamed("fetchAuthMethods", 2)
     private val startStack: Method? = mobileClass.method("startStack", Long::class.javaPrimitiveType!!)
         ?: mobileClass.method("startStack", Int::class.javaPrimitiveType!!)
     private val logout: Method? = mobileClass.method("logout")
@@ -30,6 +31,26 @@ class GoMobileCoreBridge : CoreBridge {
         localSocks5 = startProxy != null,
         localHttp = startProxy != null,
     )
+
+    override fun fetchAuthMethods(server: String, port: Int): Result<List<AuthMethod>> = runCatching {
+        val method = checkNotNull(fetchAuthMethods) { "当前核心不支持获取服务器认证方式" }
+        val result = JSONObject(method.invoke(null, server, port.toLong())?.toString().orEmpty())
+        check(result.optBoolean("ok")) { result.optString("errorMessage", "获取认证方式失败") }
+        val methods = result.optJSONArray("authMethods") ?: return@runCatching emptyList()
+        buildList {
+            for (index in 0 until methods.length()) {
+                val item = methods.optJSONObject(index) ?: continue
+                add(
+                    AuthMethod(
+                        name = item.optString("authName"),
+                        type = item.optString("authType"),
+                        loginDomain = item.optString("loginDomain"),
+                        loginUrl = item.optString("loginUrl"),
+                    ),
+                )
+            }
+        }
+    }
 
     override fun login(profile: ConnectionProfile, onChallenge: (String) -> String): Result<NegotiatedTunnel> = runCatching {
         if (prepareWithCallback != null || prepare != null) {
@@ -100,12 +121,20 @@ class GoMobileCoreBridge : CoreBridge {
             .put("port", profile.port)
             .put("username", profile.username)
             .put("password", profile.password)
+            .put("totpSecret", profile.totpSecret)
             .put("authType", profile.authType)
             .put("loginDomain", profile.loginDomain)
+            .put("phone", profile.phone)
             .put("clientData", profile.clientData)
             .put("socksBind", "127.0.0.1:${profile.socksPort}")
             .put("httpBind", "127.0.0.1:${profile.httpPort}")
             .put("remoteDns", profile.dnsServers.firstOrNull().orEmpty())
+            .put("secondaryDns", profile.dnsServers.getOrNull(1).orEmpty())
+            .put("dnsTtl", profile.dnsTtl)
+            .put("proxyAll", profile.proxyAll)
+            .put("disableServerConfig", profile.disableServerConfig)
+            .put("updateBestNodesInterval", profile.updateBestNodesInterval)
+            .put("sessionRefreshInterval", profile.sessionRefreshInterval)
         val arguments = if (method.parameterCount == 2) {
             val callbackType = method.parameterTypes[1]
             val callback = Proxy.newProxyInstance(

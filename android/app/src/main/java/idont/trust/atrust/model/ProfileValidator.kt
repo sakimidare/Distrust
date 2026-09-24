@@ -8,8 +8,13 @@ object ProfileValidator {
     fun validate(profile: ConnectionProfile): List<ValidationIssue> = buildList {
         if (profile.server.isBlank()) add(ValidationIssue("server", "服务器地址不能为空"))
         if (profile.port !in 1..65535) add(ValidationIssue("port", "服务器端口必须在 1～65535 之间"))
-        if (profile.username.isBlank()) add(ValidationIssue("username", "账号不能为空"))
-        if (profile.password.isBlank()) add(ValidationIssue("password", "密码不能为空"))
+        val passwordAuth = profile.protocol == VpnProtocol.EASYCONNECT ||
+            profile.authType.removePrefix("auth/") == "psw"
+        if (passwordAuth && profile.username.isBlank()) add(ValidationIssue("username", "账号不能为空"))
+        if (passwordAuth && profile.password.isBlank()) add(ValidationIssue("password", "密码不能为空"))
+        if (profile.authType.removePrefix("auth/") == "smsCheckCode" && profile.phone.isBlank()) {
+            add(ValidationIssue("phone", "短信认证需要手机号码"))
+        }
         if (profile.socksPort !in 1..65535) add(ValidationIssue("socksPort", "SOCKS5 端口无效"))
         if (profile.httpPort !in 1..65535) add(ValidationIssue("httpPort", "HTTP 端口无效"))
         if (profile.socksPort == profile.httpPort) add(ValidationIssue("httpPort", "SOCKS5 和 HTTP 端口不能相同"))

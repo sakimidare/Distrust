@@ -54,6 +54,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.Switch
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -73,6 +74,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.ui.layout.ContentScale
 import idont.trust.atrust.model.ConnectionMode
 import idont.trust.atrust.model.ConnectionProfile
@@ -99,6 +101,7 @@ private enum class Destination(val route: String, val label: String, val icon: I
 }
 
 private const val SSO_ROUTE = "sso"
+private const val WIZARD_ROUTE = "configuration_wizard"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -107,10 +110,13 @@ fun DistrustApp(
     connectionState: ConnectionState,
     logs: List<LogEntry>,
     authChallenge: String?,
+    authDiscovery: AuthDiscoveryState,
     onSaveProfile: (ConnectionProfile) -> Unit,
     onClearLogs: () -> Unit,
     onSubmitAuth: (String) -> Unit,
     onCancelAuth: () -> Unit,
+    onFetchAuthMethods: (String, Int) -> Unit,
+    onResetAuthDiscovery: () -> Unit,
     onConnect: (ConnectionProfile) -> Unit,
     onDisconnect: () -> Unit,
 ) {
@@ -142,8 +148,8 @@ fun DistrustApp(
         topBar = {
             TopAppBar(
                 title = {
-                    if (currentDestination?.route == SSO_ROUTE) {
-                        Text("SSO 登录", fontWeight = FontWeight.SemiBold)
+                    if (currentDestination?.route == SSO_ROUTE || currentDestination?.route == WIZARD_ROUTE) {
+                        Text(if (currentDestination?.route == SSO_ROUTE) "SSO 登录" else "配置向导", fontWeight = FontWeight.SemiBold)
                     } else {
                         Column {
                             Text("Distrust", fontWeight = FontWeight.SemiBold)
@@ -156,12 +162,13 @@ fun DistrustApp(
                     }
                 },
                 navigationIcon = {
-                    if (currentDestination?.route == SSO_ROUTE) {
+                    if (currentDestination?.route == SSO_ROUTE || currentDestination?.route == WIZARD_ROUTE) {
                         IconButton(onClick = {
-                            onCancelAuth()
+                            if (currentDestination?.route == SSO_ROUTE) onCancelAuth()
+                            else onResetAuthDiscovery()
                             navController.popBackStack()
                         }) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, "退出 SSO 登录")
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
                         }
                     }
                 },
@@ -169,7 +176,7 @@ fun DistrustApp(
         },
         snackbarHost = { SnackbarHost(snackbar) },
         bottomBar = {
-            if (currentDestination?.route != SSO_ROUTE) NavigationBar {
+            if (currentDestination?.route != SSO_ROUTE && currentDestination?.route != WIZARD_ROUTE) NavigationBar {
                 Destination.entries.forEach { item ->
                     NavigationBarItem(
                         selected = currentDestination?.hierarchy?.any { it.route == item.route } == true,
@@ -200,6 +207,10 @@ fun DistrustApp(
                     connectionState,
                     onConnect,
                     onDisconnect,
+                    onOpenWizard = {
+                        onResetAuthDiscovery()
+                        navController.navigate(WIZARD_ROUTE) { launchSingleTop = true }
+                    },
                     Modifier,
                 )
             }
@@ -227,6 +238,19 @@ fun DistrustApp(
                     },
                     onCancel = {
                         onCancelAuth()
+                        navController.popBackStack()
+                    },
+                )
+            }
+            composable(WIZARD_ROUTE) {
+                ConfigurationWizardScreen(
+                    initial = profile,
+                    authDiscovery = authDiscovery,
+                    onFetchAuthMethods = onFetchAuthMethods,
+                    onResetAuthDiscovery = onResetAuthDiscovery,
+                    onFinish = { configured ->
+                        onSaveProfile(configured)
+                        onResetAuthDiscovery()
                         navController.popBackStack()
                     },
                 )
@@ -319,6 +343,7 @@ private fun HomeScreen(
     state: ConnectionState,
     onConnect: (ConnectionProfile) -> Unit,
     onDisconnect: () -> Unit,
+    onOpenWizard: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -330,6 +355,11 @@ private fun HomeScreen(
     ) {
         StatusCard(profile, state)
         ModeCard(profile)
+        FilledTonalButton(onClick = onOpenWizard, modifier = Modifier.fillMaxWidth()) {
+            Icon(Icons.Default.Settings, null)
+            Spacer(Modifier.size(8.dp))
+            Text("配置向导")
+        }
         ProxyEndpointsCard(profile)
 
         val active = state is ConnectionState.Connecting || state is ConnectionState.Connected
@@ -479,6 +509,13 @@ private fun ProfileScreen(
         }
         OutlinedTextField(draft.routes.joinToString("\n"), { value -> draft = draft.copy(routes = value.lines().map(String::trim).filter(String::isNotEmpty)) }, label = { Text("分流网段") }, supportingText = { Text("每行一个 CIDR，例如 10.0.0.0/8") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
         OutlinedTextField(draft.dnsServers.joinToString("\n"), { value -> draft = draft.copy(dnsServers = value.lines().map(String::trim).filter(String::isNotEmpty)) }, label = { Text("DNS 服务器") }, supportingText = { Text("每行一个 IP") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
+        Text("DNS 与服务端策略", style = MaterialTheme.typography.titleMedium)
+        OutlinedTextField(draft.dnsTtl.toString(), { it.toIntOrNull()?.let { value -> draft = draft.copy(dnsTtl = value.coerceAtLeast(1)) } }, label = { Text("DNS 缓存时间（秒）") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth(), singleLine = true)
+        SettingSwitch("代理全部流量", "忽略服务端分流边界，将所有请求送入校园 VPN", draft.proxyAll) { draft = draft.copy(proxyAll = it) }
+        SettingSwitch("忽略服务器配置", "不使用服务端下发的资源与分流策略", draft.disableServerConfig) { draft = draft.copy(disableServerConfig = it) }
+        Text("aTrust 会话", style = MaterialTheme.typography.titleMedium)
+        OutlinedTextField(draft.updateBestNodesInterval.toString(), { it.toIntOrNull()?.let { value -> draft = draft.copy(updateBestNodesInterval = value.coerceAtLeast(0)) } }, label = { Text("节点优选间隔（秒）") }, supportingText = { Text("0 表示禁用") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth(), singleLine = true)
+        OutlinedTextField(draft.sessionRefreshInterval.toString(), { it.toIntOrNull()?.let { value -> draft = draft.copy(sessionRefreshInterval = value.coerceAtLeast(0)) } }, label = { Text("会话刷新间隔（秒）") }, supportingText = { Text("0 表示禁用") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth(), singleLine = true)
         if (issues.isNotEmpty()) {
             Text(
                 issues.first().message,
@@ -494,6 +531,28 @@ private fun ProfileScreen(
             Icon(Icons.Default.Save, null)
             Spacer(Modifier.size(8.dp))
             Text("保存配置")
+        }
+    }
+}
+
+@Composable
+private fun SettingSwitch(
+    title: String,
+    description: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    OutlinedCard(Modifier.fillMaxWidth().clickable { onCheckedChange(!checked) }) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.titleSmall)
+                Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Switch(checked = checked, onCheckedChange = onCheckedChange)
         }
     }
 }

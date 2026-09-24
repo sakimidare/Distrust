@@ -9,6 +9,13 @@ data class CoreCapabilities(
     val localHttp: Boolean,
 )
 
+data class AuthMethod(
+    val name: String,
+    val type: String,
+    val loginDomain: String,
+    val loginUrl: String,
+)
+
 data class NegotiatedTunnel(
     val address: String,
     val prefixLength: Int = 8,
@@ -27,6 +34,7 @@ data class ProxySession(
 interface CoreBridge {
     val capabilities: CoreCapabilities
 
+    fun fetchAuthMethods(server: String, port: Int): Result<List<AuthMethod>>
     fun login(profile: ConnectionProfile, onChallenge: (String) -> String): Result<NegotiatedTunnel>
     fun runTun(fileDescriptor: Int): Result<Unit>
     fun startLocalProxy(profile: ConnectionProfile, onChallenge: (String) -> String): Result<ProxySession>

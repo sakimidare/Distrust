@@ -20,6 +20,8 @@ Distrust 提供两种互斥运行方式：
 - [x] 包名 `idont.trust.atrust`
 - [x] 动态配色、深色模式和基础自适应布局
 - [x] Navigation Compose 顶层页面导航、返回栈与状态恢复
+- [x] 五步配置向导（协议、服务器、认证发现、凭据、运行模式）
+- [x] 直接读取 aTrust 服务器公开的认证方式列表
 - [x] Android Keystore 加密凭据存储
 - [x] DataStore 配置存储与配置校验
 - [x] `VpnService` 授权、前台服务和 TUN 生命周期骨架
@@ -34,6 +36,7 @@ Distrust 提供两种互斥运行方式：
 - [x] 短信、TOTP、RADIUS、文本验证码和内嵌 SSO WebView 回调截获
 - [ ] 点选验证码画布与响应坐标
 - [ ] 动态路由、DNS、Fake IP 与服务端资源策略
+- [x] DNS TTL、全局代理、服务端策略、节点优选和会话刷新设置
 - [ ] 多配置管理、导入导出和自动重连
 - [ ] 内置 PCAP/PCAPNG 抓包
 
