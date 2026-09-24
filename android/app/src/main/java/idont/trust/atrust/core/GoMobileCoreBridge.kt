@@ -114,10 +114,16 @@ class GoMobileCoreBridge : CoreBridge {
         Logger.i("GoCore", "Starting TUN stack; fd=$fileDescriptor")
         val method = checkNotNull(startStack) { "当前核心不支持 Android TUN" }
         val parameter = method.parameterTypes.singleOrNull()
-        if (parameter == java.lang.Long.TYPE) {
+        val response = if (parameter == java.lang.Long.TYPE) {
             method.invoke(null, fileDescriptor.toLong())
         } else {
             method.invoke(null, fileDescriptor)
+        }
+        if (response is String && response.isNotBlank()) {
+            val result = JSONObject(response)
+            check(result.optBoolean("ok")) {
+                result.optString("errorMessage", "TUN 数据面已停止")
+            }
         }
     }
 
@@ -238,6 +244,19 @@ class GoMobileCoreBridge : CoreBridge {
                                 "tcpPrefL3=${rule.optBoolean("enableTcpPrefL3")} addrPretend=${rule.optBoolean("addrPretend")}",
                         )
                     }
+                }
+            }
+            if (ips != null) {
+                for (index in 0 until ips.length()) {
+                    val rule = ips.optJSONObject(index) ?: continue
+                    Logger.d(
+                        "Policy",
+                        "ip=${rule.optString("ipMin")}-${rule.optString("ipMax")} " +
+                            "protocol=${rule.optString("protocol")} " +
+                            "ports=${rule.optInt("portMin")}-${rule.optInt("portMax")} " +
+                            "appId=${rule.optString("appId")} nodeGroup=${rule.optString("nodeGroupId")} " +
+                            "tcpPrefL3=${rule.optBoolean("enableTcpPrefL3")}",
+                    )
                 }
             }
         }.onFailure { Logger.e("Policy", "Failed to read resource snapshot", it) }

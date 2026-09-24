@@ -1,6 +1,7 @@
 package idont.trust.atrust.service
 
 import idont.trust.atrust.model.ConnectionMode
+import idont.trust.atrust.logging.Logger
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
@@ -17,6 +18,7 @@ object ConnectionRuntime {
     val state = mutableState.asStateFlow()
 
     fun update(state: ConnectionState) {
+        Logger.i("ConnectionState", "${mutableState.value} -> $state")
         mutableState.value = state
     }
 }
