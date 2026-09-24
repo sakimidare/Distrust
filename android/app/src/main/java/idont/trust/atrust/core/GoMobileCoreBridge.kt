@@ -7,6 +7,7 @@ import java.lang.reflect.Proxy
 import java.net.Inet4Address
 import java.net.InetAddress
 import org.json.JSONArray
+import idont.trust.atrust.data.DnsHistoryStore
 import org.json.JSONObject
 import idont.trust.atrust.logging.Logger
 import idont.trust.atrust.service.ConnectionRuntime
@@ -20,6 +21,8 @@ import idont.trust.atrust.service.ConnectionState
  * EasyConnect-only API from being presented as aTrust or proxy support.
  */
 class GoMobileCoreBridge : CoreBridge {
+    @Volatile
+    private var dnsNamespace: String = "default"
     private val mobileClass = runCatching { Class.forName("mobile.Mobile") }.getOrNull()
     private val login: Method? = mobileClass.method("login", String::class.java, String::class.java, String::class.java)
     private val prepare: Method? = mobileClass.method("prepare", String::class.java)
@@ -66,6 +69,16 @@ class GoMobileCoreBridge : CoreBridge {
                     }.onFailure {
                         Logger.w("SystemDNS", "Failed to resolve $host", it)
                     }.getOrDefault("[]")
+                } else if (invoked.name.equals("lookupHistory", ignoreCase = true)) {
+                    val host = values?.firstOrNull()?.toString().orEmpty()
+                    val addresses = DnsHistoryStore.lookup(dnsNamespace, host)
+                    Logger.d("DNSHistory", "Lookup namespace=$dnsNamespace host=$host answers=$addresses")
+                    JSONArray(addresses).toString()
+                } else if (invoked.name.equals("recordSuccess", ignoreCase = true)) {
+                    val host = values?.getOrNull(0)?.toString().orEmpty()
+                    val address = values?.getOrNull(1)?.toString().orEmpty()
+                    DnsHistoryStore.record(dnsNamespace, host, address)
+                    null
                 } else null
             }
             method.invoke(null, callback)
@@ -202,6 +215,7 @@ class GoMobileCoreBridge : CoreBridge {
         profile: ConnectionProfile,
         onChallenge: (String) -> String = { "" },
     ): JSONObject {
+        dnsNamespace = "${profile.server}:${profile.port}"
         val config = JSONObject()
             .put("protocol", if (profile.protocol == VpnProtocol.ATRUST) "atrust" else "easyconnect")
             .put("server", profile.server)

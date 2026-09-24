@@ -2,10 +2,12 @@ package idont.trust.atrust
 
 import android.app.Application
 import idont.trust.atrust.logging.Logger
+import idont.trust.atrust.data.DnsHistoryStore
 
 class DistrustApplication : Application() {
     override fun onCreate() {
         super.onCreate()
+        DnsHistoryStore.initialize(this)
         val previousHandler = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
             Logger.wtf("Crash", "Uncaught exception on thread ${thread.name}", throwable)
