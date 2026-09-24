@@ -73,7 +73,6 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.Image
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalUriHandler
 import idont.trust.atrust.model.ConnectionMode
 import idont.trust.atrust.model.ConnectionProfile
 import idont.trust.atrust.model.ProfileValidator
@@ -115,7 +114,7 @@ fun DistrustApp(
         }
     }
     authChallenge?.let {
-        AuthChallengeDialog(it, onSubmitAuth, onCancelAuth)
+        AuthChallengeDialog(it, profile, onSubmitAuth, onCancelAuth)
     }
 
     Scaffold(
@@ -171,6 +170,7 @@ fun DistrustApp(
 @Composable
 private fun AuthChallengeDialog(
     challengeJson: String,
+    profile: ConnectionProfile,
     onSubmit: (String) -> Unit,
     onCancel: () -> Unit,
 ) {
@@ -179,7 +179,18 @@ private fun AuthChallengeDialog(
     val payload = challenge?.optJSONObject("payload")
     var value by remember(challengeJson) { mutableStateOf("") }
     var skipSecondary by remember(challengeJson) { mutableStateOf(false) }
-    val uriHandler = LocalUriHandler.current
+    if (type == "externalLogin") {
+        val loginUrl = payload?.optString("loginUrl").orEmpty()
+        SsoLoginDialog(
+            loginUrl = loginUrl,
+            profile = profile,
+            onCallback = { callback ->
+                onSubmit(JSONObject().put("CallbackURL", callback).toString())
+            },
+            onCancel = onCancel,
+        )
+        return
+    }
     val title = when (type) {
         "code" -> when (payload?.optString("kind")) {
             "sms" -> "短信验证码"
@@ -211,21 +222,13 @@ private fun AuthChallengeDialog(
                         )
                     }
                 }
-                if (type == "externalLogin") {
-                    FilledTonalButton(
-                        onClick = {
-                            payload?.optString("loginUrl")?.takeIf(String::isNotBlank)?.let(uriHandler::openUri)
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                    ) { Text("打开浏览器登录") }
-                }
                 if (type == "clickCaptcha") {
                     Text("点选验证码画布将在下一里程碑实现。", color = MaterialTheme.colorScheme.error)
                 } else {
                     OutlinedTextField(
                         value = value,
                         onValueChange = { value = it },
-                        label = { Text(if (type == "externalLogin") "登录完成后的回调 URL" else "认证响应") },
+                        label = { Text("认证响应") },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = type != "externalLogin",
                     )
@@ -243,7 +246,6 @@ private fun AuthChallengeDialog(
                 enabled = value.isNotBlank() && type != "clickCaptcha",
                 onClick = {
                     val response = when (type) {
-                        "externalLogin" -> JSONObject().put("CallbackURL", value)
                         "code" -> JSONObject().put("Code", value).put("SkipSecondaryAuth", skipSecondary)
                         else -> JSONObject().put("Code", value)
                     }

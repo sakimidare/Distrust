@@ -30,7 +30,7 @@ Distrust 提供两种互斥运行方式：
 - [x] aTrust 密码认证核心入口
 - [x] 不占用 VpnService 的 SOCKS5 与 HTTP 实际监听入口
 - [x] EasyConnect 旧移动 API 兼容桥
-- [x] 短信、TOTP、RADIUS、文本验证码和浏览器认证回调桥
+- [x] 短信、TOTP、RADIUS、文本验证码和内嵌 SSO WebView 回调截获
 - [ ] 点选验证码画布与响应坐标
 - [ ] 动态路由、DNS、Fake IP 与服务端资源策略
 - [ ] 多配置管理、导入导出和自动重连
@@ -78,8 +78,9 @@ cd android
 
 没有 AAR 时，应用 UI 仍可构建和运行，但连接会明确显示“未安装核心”，不会伪造成功状态。
 当前 Mobile API v2 已提供 EasyConnect、aTrust、Android TUN、SOCKS5、HTTP 本地代理，
-并以同步 Go 回调连接 Android 异步认证界面。短信、TOTP、RADIUS、文本验证码和外部浏览器
-认证已具备界面桥；点选验证码画布仍在开发中。
+并以同步 Go 回调连接 Android 异步认证界面。短信、TOTP、RADIUS、文本验证码和内嵌 SSO
+认证已具备界面桥；SSO 会在 3xx 导航加载前自动截获完整回调 URL，无需用户复制。
+点选验证码画布仍在开发中。
 
 计划中的移动核心接口：
 
