@@ -513,6 +513,23 @@ private fun ProfileScreen(
         }
         OutlinedTextField(draft.routes.joinToString("\n"), { value -> draft = draft.copy(routes = value.lines().map(String::trim).filter(String::isNotEmpty)) }, label = { Text("分流网段") }, supportingText = { Text("每行一个 CIDR，例如 10.0.0.0/8") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
         OutlinedTextField(draft.dnsServers.joinToString("\n"), { value -> draft = draft.copy(dnsServers = value.lines().map(String::trim).filter(String::isNotEmpty)) }, label = { Text("DNS 服务器") }, supportingText = { Text("每行一个 IP") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
+        OutlinedTextField(
+            value = draft.customDns.entries.joinToString("\n") { "${it.key}=${it.value}" },
+            onValueChange = { value ->
+                draft = draft.copy(
+                    customDns = value.lineSequence().mapNotNull { line ->
+                        val parts = line.split('=', limit = 2)
+                        if (parts.size == 2 && parts[0].isNotBlank() && parts[1].isNotBlank()) {
+                            parts[0].trim() to parts[1].trim()
+                        } else null
+                    }.toMap(),
+                )
+            },
+            label = { Text("自定义 DNS") },
+            supportingText = { Text("每行一条：域名=IP，例如 newxk.urp.seu.edu.cn=121.248.58.121") },
+            modifier = Modifier.fillMaxWidth(),
+            minLines = 3,
+        )
         Text("DNS 与服务端策略", style = MaterialTheme.typography.titleMedium)
         OutlinedTextField(draft.dnsTtl.toString(), { it.toIntOrNull()?.let { value -> draft = draft.copy(dnsTtl = value.coerceAtLeast(1)) } }, label = { Text("DNS 缓存时间（秒）") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth(), singleLine = true)
         SettingSwitch("代理全部流量", "忽略服务端分流边界，将所有请求送入校园 VPN", draft.proxyAll) { draft = draft.copy(proxyAll = it) }

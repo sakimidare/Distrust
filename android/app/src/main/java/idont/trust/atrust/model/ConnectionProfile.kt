@@ -32,5 +32,6 @@ data class ConnectionProfile(
     val disableServerConfig: Boolean = false,
     val updateBestNodesInterval: Int = 300,
     val sessionRefreshInterval: Int = 1800,
+    val customDns: Map<String, String> = emptyMap(),
     val clientData: String = "",
 )

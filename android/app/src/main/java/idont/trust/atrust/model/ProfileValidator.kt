@@ -24,6 +24,10 @@ object ProfileValidator {
         profile.dnsServers.filterNot(::isIpAddress).forEach {
             add(ValidationIssue("dns", "无效的 DNS 地址：$it"))
         }
+        profile.customDns.forEach { (domain, address) ->
+            if (domain.isBlank() || !domain.contains('.')) add(ValidationIssue("customDns", "无效的自定义 DNS 域名：$domain"))
+            if (!isIpAddress(address)) add(ValidationIssue("customDns", "无效的自定义 DNS 地址：$address"))
+        }
     }
 
     private fun isCidr(value: String): Boolean {

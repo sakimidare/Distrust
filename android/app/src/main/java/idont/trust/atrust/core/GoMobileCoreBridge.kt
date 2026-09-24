@@ -196,6 +196,7 @@ class GoMobileCoreBridge : CoreBridge {
             .put("disableServerConfig", profile.disableServerConfig)
             .put("updateBestNodesInterval", profile.updateBestNodesInterval)
             .put("sessionRefreshInterval", profile.sessionRefreshInterval)
+            .put("customDns", JSONObject(profile.customDns))
         val arguments = if (method.parameterCount == 2) {
             val callbackType = method.parameterTypes[1]
             val callback = Proxy.newProxyInstance(

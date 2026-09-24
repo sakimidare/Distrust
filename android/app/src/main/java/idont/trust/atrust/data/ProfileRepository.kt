@@ -46,6 +46,7 @@ class ProfileRepository(private val context: Context) {
             values[Keys.DISABLE_SERVER_CONFIG] = profile.disableServerConfig
             values[Keys.UPDATE_BEST_NODES] = profile.updateBestNodesInterval
             values[Keys.SESSION_REFRESH] = profile.sessionRefreshInterval
+            values[Keys.CUSTOM_DNS] = profile.customDns.entries.joinToString("\n") { "${it.key}=${it.value}" }
         }
     }
 
@@ -76,6 +77,7 @@ class ProfileRepository(private val context: Context) {
         disableServerConfig = values[Keys.DISABLE_SERVER_CONFIG] ?: false,
         updateBestNodesInterval = values[Keys.UPDATE_BEST_NODES] ?: 300,
         sessionRefreshInterval = values[Keys.SESSION_REFRESH] ?: 1800,
+        customDns = values[Keys.CUSTOM_DNS].toDnsMap(),
         clientData = secrets.readClientData(),
     )
 
@@ -85,6 +87,14 @@ class ProfileRepository(private val context: Context) {
     private fun String?.linesOrDefault(default: List<String>): List<String> =
         this?.lineSequence()?.map(String::trim)?.filter(String::isNotEmpty)?.toList()
             ?.takeIf { it.isNotEmpty() } ?: default
+
+    private fun String?.toDnsMap(): Map<String, String> =
+        this?.lineSequence()?.mapNotNull { line ->
+            val parts = line.split('=', limit = 2)
+            if (parts.size == 2 && parts[0].isNotBlank() && parts[1].isNotBlank()) {
+                parts[0].trim() to parts[1].trim()
+            } else null
+        }?.toMap().orEmpty()
 
     private object Keys {
         val NAME = stringPreferencesKey("name")
@@ -106,5 +116,6 @@ class ProfileRepository(private val context: Context) {
         val DISABLE_SERVER_CONFIG = booleanPreferencesKey("disable_server_config")
         val UPDATE_BEST_NODES = intPreferencesKey("update_best_nodes_interval")
         val SESSION_REFRESH = intPreferencesKey("session_refresh_interval")
+        val CUSTOM_DNS = stringPreferencesKey("custom_dns")
     }
 }
