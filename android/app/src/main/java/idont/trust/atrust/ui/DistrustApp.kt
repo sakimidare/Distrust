@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
@@ -38,6 +39,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -96,6 +98,8 @@ private enum class Destination(val route: String, val label: String, val icon: I
     ABOUT("about", "关于", Icons.Default.Info),
 }
 
+private const val SSO_ROUTE = "sso"
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DistrustApp(
@@ -119,7 +123,18 @@ fun DistrustApp(
             snackbar.showSnackbar(connectionState.message)
         }
     }
-    authChallenge?.let {
+    val externalChallenge = remember(authChallenge) {
+        authChallenge?.let { raw ->
+            runCatching { JSONObject(raw) }.getOrNull()
+                ?.takeIf { it.optString("type") == "externalLogin" }
+        }
+    }
+    LaunchedEffect(externalChallenge, currentDestination?.route) {
+        if (externalChallenge != null && currentDestination?.route != SSO_ROUTE) {
+            navController.navigate(SSO_ROUTE) { launchSingleTop = true }
+        }
+    }
+    authChallenge?.takeUnless { externalChallenge != null }?.let {
         AuthChallengeDialog(it, profile, onSubmitAuth, onCancelAuth)
     }
 
@@ -127,20 +142,34 @@ fun DistrustApp(
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
-                        Text("Distrust", fontWeight = FontWeight.SemiBold)
-                        Text(
-                            "更透明的校园网络连接",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                    if (currentDestination?.route == SSO_ROUTE) {
+                        Text("SSO 登录", fontWeight = FontWeight.SemiBold)
+                    } else {
+                        Column {
+                            Text("Distrust", fontWeight = FontWeight.SemiBold)
+                            Text(
+                                "更透明的校园网络连接",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                },
+                navigationIcon = {
+                    if (currentDestination?.route == SSO_ROUTE) {
+                        IconButton(onClick = {
+                            onCancelAuth()
+                            navController.popBackStack()
+                        }) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, "退出 SSO 登录")
+                        }
                     }
                 },
             )
         },
         snackbarHost = { SnackbarHost(snackbar) },
         bottomBar = {
-            NavigationBar {
+            if (currentDestination?.route != SSO_ROUTE) NavigationBar {
                 Destination.entries.forEach { item ->
                     NavigationBarItem(
                         selected = currentDestination?.hierarchy?.any { it.route == item.route } == true,
@@ -187,6 +216,21 @@ fun DistrustApp(
             composable(Destination.ABOUT.route) {
                 AboutScreen(Modifier)
             }
+            composable(SSO_ROUTE) {
+                val payload = externalChallenge?.optJSONObject("payload")
+                SsoLoginScreen(
+                    loginUrl = payload?.optString("loginUrl").orEmpty(),
+                    profile = profile,
+                    onCallback = { callback ->
+                        onSubmitAuth(JSONObject().put("CallbackURL", callback).toString())
+                        navController.popBackStack()
+                    },
+                    onCancel = {
+                        onCancelAuth()
+                        navController.popBackStack()
+                    },
+                )
+            }
         }
     }
 }
@@ -203,18 +247,6 @@ private fun AuthChallengeDialog(
     val payload = challenge?.optJSONObject("payload")
     var value by remember(challengeJson) { mutableStateOf("") }
     var skipSecondary by remember(challengeJson) { mutableStateOf(false) }
-    if (type == "externalLogin") {
-        val loginUrl = payload?.optString("loginUrl").orEmpty()
-        SsoLoginDialog(
-            loginUrl = loginUrl,
-            profile = profile,
-            onCallback = { callback ->
-                onSubmit(JSONObject().put("CallbackURL", callback).toString())
-            },
-            onCancel = onCancel,
-        )
-        return
-    }
     val title = when (type) {
         "code" -> when (payload?.optString("kind")) {
             "sms" -> "短信验证码"
