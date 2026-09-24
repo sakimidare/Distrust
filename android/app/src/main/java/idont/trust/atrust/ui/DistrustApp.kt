@@ -2,7 +2,6 @@ package idont.trust.atrust.ui
 
 import android.graphics.BitmapFactory
 import android.util.Base64
-import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -84,12 +83,17 @@ import idont.trust.atrust.util.ProxyConfigFormatter
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import org.json.JSONObject
+import androidx.navigation.NavDestination.Companion.hierarchy
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.rememberNavController
 
-private enum class Destination(val label: String, val icon: ImageVector) {
-    HOME("连接", Icons.Default.Home),
-    PROFILE("配置", Icons.Default.Settings),
-    LOGS("日志", Icons.AutoMirrored.Filled.ReceiptLong),
-    ABOUT("关于", Icons.Default.Info),
+private enum class Destination(val route: String, val label: String, val icon: ImageVector) {
+    HOME("home", "连接", Icons.Default.Home),
+    PROFILE("profile", "配置", Icons.Default.Settings),
+    LOGS("logs", "日志", Icons.AutoMirrored.Filled.ReceiptLong),
+    ABOUT("about", "关于", Icons.Default.Info),
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -106,7 +110,9 @@ fun DistrustApp(
     onConnect: (ConnectionProfile) -> Unit,
     onDisconnect: () -> Unit,
 ) {
-    var destination by remember { mutableStateOf(Destination.HOME) }
+    val navController = rememberNavController()
+    val backStackEntry by navController.currentBackStackEntryAsState()
+    val currentDestination = backStackEntry?.destination
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(connectionState) {
         if (connectionState is ConnectionState.Failed) {
@@ -137,8 +143,16 @@ fun DistrustApp(
             NavigationBar {
                 Destination.entries.forEach { item ->
                     NavigationBarItem(
-                        selected = destination == item,
-                        onClick = { destination = item },
+                        selected = currentDestination?.hierarchy?.any { it.route == item.route } == true,
+                        onClick = {
+                            navController.navigate(item.route) {
+                                popUpTo(navController.graph.id) {
+                                    saveState = true
+                                }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        },
                         icon = { Icon(item.icon, contentDescription = null) },
                         label = { Text(item.label) },
                     )
@@ -146,22 +160,32 @@ fun DistrustApp(
             }
         },
     ) { padding ->
-        AnimatedContent(destination, label = "main destination") { selected ->
-            when (selected) {
-                Destination.HOME -> HomeScreen(
+        NavHost(
+            navController = navController,
+            startDestination = Destination.HOME.route,
+            modifier = Modifier.padding(padding),
+        ) {
+            composable(Destination.HOME.route) {
+                HomeScreen(
                     profile,
                     connectionState,
                     onConnect,
                     onDisconnect,
-                    Modifier.padding(padding),
+                    Modifier,
                 )
-                Destination.PROFILE -> ProfileScreen(
+            }
+            composable(Destination.PROFILE.route) {
+                ProfileScreen(
                     profile,
                     onSaveProfile,
-                    Modifier.padding(padding),
+                    Modifier,
                 )
-                Destination.LOGS -> LogScreen(logs, onClearLogs, Modifier.padding(padding))
-                Destination.ABOUT -> AboutScreen(Modifier.padding(padding))
+            }
+            composable(Destination.LOGS.route) {
+                LogScreen(logs, onClearLogs, Modifier)
+            }
+            composable(Destination.ABOUT.route) {
+                AboutScreen(Modifier)
             }
         }
     }

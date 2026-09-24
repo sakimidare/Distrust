@@ -19,6 +19,7 @@ Distrust 提供两种互斥运行方式：
 - [x] Kotlin/Compose/Material 3 原生工程
 - [x] 包名 `idont.trust.atrust`
 - [x] 动态配色、深色模式和基础自适应布局
+- [x] Navigation Compose 顶层页面导航、返回栈与状态恢复
 - [x] Android Keystore 加密凭据存储
 - [x] DataStore 配置存储与配置校验
 - [x] `VpnService` 授权、前台服务和 TUN 生命周期骨架
