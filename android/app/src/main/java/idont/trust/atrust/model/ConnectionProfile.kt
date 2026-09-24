@@ -26,7 +26,7 @@ data class ConnectionProfile(
     val socksPort: Int = 11080,
     val httpPort: Int = 11081,
     val routes: List<String> = listOf("10.0.0.0/8"),
-    val dnsServers: List<String> = listOf("10.10.0.21"),
+    val dnsServers: List<String> = emptyList(),
     val dnsTtl: Int = 3600,
     val proxyAll: Boolean = false,
     val disableServerConfig: Boolean = false,

@@ -184,8 +184,13 @@ class GoMobileCoreBridge : CoreBridge {
             .put("clientData", profile.clientData)
             .put("socksBind", "127.0.0.1:${profile.socksPort}")
             .put("httpBind", "127.0.0.1:${profile.httpPort}")
-            .put("remoteDns", profile.dnsServers.firstOrNull().orEmpty())
-            .put("secondaryDns", profile.dnsServers.getOrNull(1).orEmpty())
+            .put(
+                "remoteDns",
+                profile.dnsServers.firstOrNull()
+                    ?.takeUnless { profile.protocol == VpnProtocol.ATRUST && it == "10.10.0.21" }
+                    ?: "auto",
+            )
+            .put("secondaryDns", profile.dnsServers.getOrNull(1) ?: "auto")
             .put("dnsTtl", profile.dnsTtl)
             .put("proxyAll", profile.proxyAll)
             .put("disableServerConfig", profile.disableServerConfig)

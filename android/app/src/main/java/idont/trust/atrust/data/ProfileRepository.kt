@@ -70,7 +70,7 @@ class ProfileRepository(private val context: Context) {
         socksPort = values[Keys.SOCKS_PORT] ?: 11080,
         httpPort = values[Keys.HTTP_PORT] ?: 11081,
         routes = values[Keys.ROUTES].linesOrDefault(listOf("10.0.0.0/8")),
-        dnsServers = values[Keys.DNS].linesOrDefault(listOf("10.10.0.21")),
+        dnsServers = values[Keys.DNS].linesOrDefault(emptyList()),
         dnsTtl = values[Keys.DNS_TTL] ?: 3600,
         proxyAll = values[Keys.PROXY_ALL] ?: false,
         disableServerConfig = values[Keys.DISABLE_SERVER_CONFIG] ?: false,
