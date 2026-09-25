@@ -28,6 +28,9 @@ object ProfileValidator {
         if (profile.keepAliveUrl.isNotBlank() && !isHttpUrl(profile.keepAliveUrl)) {
             add(ValidationIssue("keepAliveUrl", "保活 URL 必须是有效的 HTTP/HTTPS 地址"))
         }
+        if (profile.tcpTunnelOnly && profile.protocol != VpnProtocol.ATRUST) {
+            add(ValidationIssue("tcpTunnelOnly", "TCP Tunnel 模式需要 aTrust 协议"))
+        }
         profile.routes.filterNot(::isCidr).forEach {
             add(ValidationIssue("routes", "无效的 CIDR：$it"))
         }

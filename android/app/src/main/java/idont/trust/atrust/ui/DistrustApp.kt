@@ -832,6 +832,7 @@ private fun PolicySettingsPage(stored: ConnectionProfile, onSave: (ConnectionPro
                 item { SettingsSwitchWidget("本地配置模式", "以本地路由和 DNS 配置为准", Icons.TwoTone.Settings, draft.disableServerConfig) { draft = draft.copy(disableServerConfig = it) } }
                 item { SettingsSwitchWidget("使用本地 DNS", "通过 Android 系统与直连备用 DNS 解析", Icons.TwoTone.Settings, draft.disableRemoteDns) { draft = draft.copy(disableRemoteDns = it) } }
                 item { SettingsSwitchWidget("仅使用 IP 资源", "根据服务端 IP Resource 决定 VPN 路由", Icons.TwoTone.Shield, draft.skipDomainResource) { draft = draft.copy(skipDomainResource = it) } }
+                item { SettingsSwitchWidget("仅使用 TCP Tunnel", "TCP 资源统一通过应用层隧道传输", Icons.TwoTone.Lan, draft.tcpTunnelOnly, enabled = draft.protocol == VpnProtocol.ATRUST) { draft = draft.copy(tcpTunnelOnly = it) } }
             }
         }
         item {

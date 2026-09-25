@@ -49,6 +49,7 @@ data class ConnectionProfile(
     val dialDirectProxy: String = "",
     val disableKeepAlive: Boolean = false,
     val keepAliveUrl: String = "",
+    val tcpTunnelOnly: Boolean = false,
     val updateBestNodesInterval: Int = 300,
     val sessionRefreshInterval: Int = 1800,
     val customDns: Map<String, String> = emptyMap(),

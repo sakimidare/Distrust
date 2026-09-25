@@ -52,6 +52,7 @@ class ProfileRepository(private val context: Context) {
             values[Keys.DIAL_DIRECT_PROXY] = profile.dialDirectProxy.trim()
             values[Keys.DISABLE_KEEP_ALIVE] = profile.disableKeepAlive
             values[Keys.KEEP_ALIVE_URL] = profile.keepAliveUrl.trim()
+            values[Keys.TCP_TUNNEL_ONLY] = profile.tcpTunnelOnly
             values[Keys.UPDATE_BEST_NODES] = profile.updateBestNodesInterval
             values[Keys.SESSION_REFRESH] = profile.sessionRefreshInterval
             values[Keys.CUSTOM_DNS] = profile.customDns.entries.joinToString("\n") { "${it.key}=${it.value}" }
@@ -102,6 +103,7 @@ class ProfileRepository(private val context: Context) {
         dialDirectProxy = values[Keys.DIAL_DIRECT_PROXY] ?: "",
         disableKeepAlive = values[Keys.DISABLE_KEEP_ALIVE] ?: false,
         keepAliveUrl = values[Keys.KEEP_ALIVE_URL] ?: "",
+        tcpTunnelOnly = values[Keys.TCP_TUNNEL_ONLY] ?: false,
         updateBestNodesInterval = values[Keys.UPDATE_BEST_NODES] ?: 300,
         sessionRefreshInterval = values[Keys.SESSION_REFRESH] ?: 1800,
         customDns = values[Keys.CUSTOM_DNS].toDnsMap(),
@@ -150,6 +152,7 @@ class ProfileRepository(private val context: Context) {
         val DIAL_DIRECT_PROXY = stringPreferencesKey("dial_direct_proxy")
         val DISABLE_KEEP_ALIVE = booleanPreferencesKey("disable_keep_alive")
         val KEEP_ALIVE_URL = stringPreferencesKey("keep_alive_url")
+        val TCP_TUNNEL_ONLY = booleanPreferencesKey("tcp_tunnel_only")
         val UPDATE_BEST_NODES = intPreferencesKey("update_best_nodes_interval")
         val SESSION_REFRESH = intPreferencesKey("session_refresh_interval")
         val CUSTOM_DNS = stringPreferencesKey("custom_dns")

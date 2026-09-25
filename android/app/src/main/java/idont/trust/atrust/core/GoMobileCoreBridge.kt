@@ -288,6 +288,7 @@ class GoMobileCoreBridge : CoreBridge {
             .put("dialDirectProxy", profile.dialDirectProxy)
             .put("disableKeepAlive", profile.disableKeepAlive)
             .put("keepAliveUrl", profile.keepAliveUrl)
+            .put("tcpTunnelOnly", profile.tcpTunnelOnly)
             .put("updateBestNodesInterval", profile.updateBestNodesInterval)
             .put("sessionRefreshInterval", profile.sessionRefreshInterval)
             .put("customDns", JSONObject(profile.customDns))
