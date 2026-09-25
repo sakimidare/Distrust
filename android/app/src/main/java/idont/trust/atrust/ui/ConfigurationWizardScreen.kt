@@ -155,10 +155,19 @@ fun ConfigurationWizardScreen(
                         when (authDiscovery) {
                             is AuthDiscoveryState.Error -> item { Text(authDiscovery.message, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(horizontal = 20.dp)) }
                             is AuthDiscoveryState.Success -> {
-                                items(authDiscovery.methods.size) { index ->
-                                    val method = authDiscovery.methods[index]
-                                    AuthMethodItem(method, draft) {
-                                        draft = draft.copy(authType = method.type.removePrefix("auth/"), loginDomain = method.loginDomain, loginUrl = method.loginUrl)
+                                item {
+                                    SegmentedColumn("可用认证方式") {
+                                        authDiscovery.methods.forEachIndexed { index, method ->
+                                            item(key = "${method.type}-${method.loginDomain}-$index") {
+                                                AuthMethodItem(method, draft) {
+                                                    draft = draft.copy(
+                                                        authType = method.type.removePrefix("auth/"),
+                                                        loginDomain = method.loginDomain,
+                                                        loginUrl = method.loginUrl,
+                                                    )
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }

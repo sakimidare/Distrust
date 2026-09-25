@@ -431,18 +431,31 @@ private fun HomePage(
                 iconSize = 18.dp,
                 isError = statusError,
                 containerColor = if (statusError) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.primaryContainer,
-                onClick = { if (active) onDisconnect() else onConnect(profile) },
-                trailingContent = {
-                    Button(
-                        onClick = { if (active) onDisconnect() else onConnect(profile) },
-                        colors = if (statusError) ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error) else ButtonDefaults.buttonColors(),
-                    ) {
-                        Icon(if (active) Icons.Rounded.Stop else Icons.TwoTone.Shield, null)
-                        Spacer(Modifier.width(6.dp))
-                        Text(if (active) "断开" else "连接")
-                    }
-                },
             )
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                FilledTonalButton(
+                    onClick = onOpenWizard,
+                    modifier = Modifier.weight(1f).height(52.dp),
+                    shape = RoundedCornerShape(20.dp),
+                ) {
+                    Icon(Icons.TwoTone.Tune, null)
+                    Spacer(Modifier.width(6.dp))
+                    Text("配置向导")
+                }
+                Button(
+                    onClick = { if (active) onDisconnect() else onConnect(profile) },
+                    modifier = Modifier.weight(1f).height(52.dp),
+                    shape = RoundedCornerShape(20.dp),
+                    colors = if (statusError) ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error) else ButtonDefaults.buttonColors(),
+                ) {
+                    Icon(if (active) Icons.Rounded.Stop else Icons.TwoTone.Shield, null)
+                    Spacer(Modifier.width(6.dp))
+                    Text(if (active) "断开" else "连接")
+                }
+            }
             Spacer(Modifier.height(10.dp))
             SegmentedColumn("连接信息", contentPadding = PaddingValues(horizontal = 0.dp, vertical = 4.dp)) {
                 item { SettingsBaseWidget(profile.mode.label, if (profile.mode == ConnectionMode.LOCAL_PROXY) "SOCKS5/HTTP 二级代理" else "接管系统选定流量", if (profile.mode == ConnectionMode.LOCAL_PROXY) Icons.TwoTone.Lan else Icons.TwoTone.Shield, onClick = { showModeDialog = true }, trailingContent = { Icon(Icons.TwoTone.Edit, "修改") }) }
@@ -453,9 +466,6 @@ private fun HomePage(
                 item { SettingsBaseWidget("SOCKS5", "127.0.0.1:${profile.socksPort}", Icons.TwoTone.Lan, onClick = { editingPort = ProxyPort.SOCKS5 }, trailingContent = { Icon(Icons.TwoTone.Edit, "修改") }) }
                 item { SettingsBaseWidget("HTTP", "127.0.0.1:${profile.httpPort}", Icons.TwoTone.Lan, onClick = { editingPort = ProxyPort.HTTP }, trailingContent = { Icon(Icons.TwoTone.Edit, "修改") }) }
                 item { ProxyCopyWidget(profile) }
-            }
-            SegmentedColumn("工具", contentPadding = PaddingValues(horizontal = 0.dp, vertical = 4.dp)) {
-                item { SettingsBaseWidget("配置向导", "重新发现认证方式并配置连接", Icons.TwoTone.Tune, onClick = onOpenWizard) }
             }
             Spacer(Modifier.height(bottomPadding + 16.dp))
         }
