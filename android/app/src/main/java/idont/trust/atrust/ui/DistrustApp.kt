@@ -537,7 +537,7 @@ private fun HomePage(
             }
             Spacer(Modifier.height(10.dp))
             SegmentedColumn("连接信息", contentPadding = PaddingValues(horizontal = 0.dp, vertical = 4.dp)) {
-                item { SettingsBaseWidget(profile.mode.label, if (profile.mode == ConnectionMode.LOCAL_PROXY) "SOCKS5/HTTP 二级代理" else "接管系统选定流量", if (profile.mode == ConnectionMode.LOCAL_PROXY) Icons.TwoTone.Lan else Icons.TwoTone.Shield, onClick = { showModeDialog = true }, trailingContent = { Icon(Icons.TwoTone.Edit, "修改") }) }
+                item { SettingsBaseWidget("连接方式", profile.mode.label, if (profile.mode == ConnectionMode.LOCAL_PROXY) Icons.TwoTone.Lan else Icons.TwoTone.Shield, onClick = { showModeDialog = true }, trailingContent = { Icon(Icons.TwoTone.Edit, "修改") }) }
                 item { SettingsJumpPageWidget("协议与服务器", "${profile.protocol.label} · ${profile.server}:${profile.port}", Icons.TwoTone.Key) { onNavigate(AppRoute.ConnectionSettings) } }
                 item(visible = state is ConnectionState.Connected) { SettingsBaseWidget("会话地址", (state as? ConnectionState.Connected)?.endpoint.orEmpty(), Icons.TwoTone.Shield) }
             }
@@ -619,7 +619,7 @@ private fun ProfilePage(
         item {
             SegmentedColumn("配置档案") {
                 item { SettingsJumpPageWidget("当前档案", stored.name, Icons.TwoTone.Key) { showProfiles = true } }
-                item { SettingsBaseWidget("新建档案", "创建一套初始连接配置", Icons.TwoTone.Key, onClick = { profileName = ""; showCreate = true }) }
+                item { SettingsBaseWidget("新建档案", "创建新的初始连接配置", Icons.TwoTone.Key, onClick = { profileName = ""; showCreate = true }) }
                 item { SettingsBaseWidget("重命名当前档案", stored.name, Icons.TwoTone.Edit, onClick = { profileName = stored.name; showRename = true }) }
                 item { SettingsBaseWidget("创建副本", "复制当前连接与凭据并切换", Icons.TwoTone.ContentCopy, onClick = onDuplicate) }
                 item { SettingsBaseWidget("删除当前档案", "切换到其余可用档案", Icons.Rounded.DeleteSweep, enabled = profiles.size > 1, isError = true, onClick = if (profiles.size > 1) ({ confirmDelete = true }) else null) }
@@ -627,8 +627,8 @@ private fun ProfilePage(
         }
         item {
             SegmentedColumn("导入与导出") {
-                item { SettingsBaseWidget("导出当前配置", "仅导出连接与策略参数", Icons.TwoTone.Info, onClick = { exportLauncher.launch("distrust-${stored.name}.json") }) }
-                item { SettingsBaseWidget("导入配置", "从 Distrust JSON 配置覆盖当前档案", Icons.TwoTone.Settings, onClick = { importLauncher.launch(arrayOf("application/json", "text/plain")) }) }
+                item { SettingsBaseWidget("导出当前配置", "生成 Distrust JSON", Icons.TwoTone.Info, onClick = { exportLauncher.launch("distrust-${stored.name}.json") }) }
+                item { SettingsBaseWidget("导入配置", "从 Distrust JSON 导入配置，并覆盖当前档案", Icons.TwoTone.Settings, onClick = { importLauncher.launch(arrayOf("application/json", "text/plain")) }) }
             }
         }
         item {

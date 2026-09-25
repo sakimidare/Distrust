@@ -22,15 +22,15 @@ android {
         applicationId = "idont.trust.atrust"
         minSdk = 26
         targetSdk = 37
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 3
+        versionName = "0.1.3a"
 
         vectorDrawables.useSupportLibrary = true
     }
 
     buildTypes {
         debug {
-            versionNameSuffix = "-dev"
+            versionNameSuffix = "-debug"
         }
         release {
             isMinifyEnabled = true
