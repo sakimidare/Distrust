@@ -107,6 +107,10 @@ class DistrustVpnService : VpnService() {
                 parseCidr(route)?.let { (address, prefix) -> builder.addRoute(address, prefix) }
                     ?: Logger.w("VpnService", "Ignoring invalid route '$route'")
             }
+            if (negotiated.domainResources.isNotEmpty()) {
+                builder.addRoute("198.18.0.0", 16)
+                Logger.d("VpnService", "Added FakeDNS route 198.18.0.0/16")
+            }
             val dnsServers = negotiated.dnsServers.ifEmpty { profile.dnsServers }
             dnsServers.forEach { dns ->
                 runCatching { builder.addDnsServer(dns) }
