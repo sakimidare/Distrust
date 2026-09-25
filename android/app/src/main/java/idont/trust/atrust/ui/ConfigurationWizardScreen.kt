@@ -150,7 +150,7 @@ fun ConfigurationWizardScreen(
                                 item {
                                     SettingsBaseWidget(
                                         title = if (authDiscovery is AuthDiscoveryState.Loading) "正在读取认证方式" else "从服务器获取认证方式",
-                                        description = "只读取公开认证配置，不会尝试登录",
+                                        description = "读取服务器公开认证配置",
                                         icon = Icons.Rounded.CloudSync,
                                         onClick = { if (authDiscovery !is AuthDiscoveryState.Loading) onFetchAuthMethods(draft.server, draft.port) },
                                         trailingContent = if (authDiscovery is AuthDiscoveryState.Loading) ({ LoadingIndicator(Modifier.size(28.dp)) }) else null,

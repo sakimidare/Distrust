@@ -341,7 +341,7 @@ private fun SelectedSettingsBaseWidgetPreview() = DistrustTheme {
 @Composable
 private fun SettingsSwitchWidgetPreview() = DistrustTheme {
     Box(Modifier.padding(16.dp)) {
-        SettingsSwitchWidget("代理全部流量", "忽略服务端分流边界", Icons.Rounded.Check, true) {}
+        SettingsSwitchWidget("代理全部流量", "所有请求优先匹配服务端资源", Icons.Rounded.Check, true) {}
     }
 }
 

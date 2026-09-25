@@ -202,7 +202,7 @@ fun SsoLoginScreen(
                     }
                     if (resolvedLoginUrl.isBlank()) {
                         Logger.e("SSO", "Resolved login URL is empty")
-                        pageError = "服务器未提供有效的 SSO 登录地址"
+                        pageError = "请检查服务器返回的 SSO 登录地址"
                     } else {
                         loadUrl(resolvedLoginUrl)
                     }

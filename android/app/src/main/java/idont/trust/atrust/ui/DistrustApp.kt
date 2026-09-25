@@ -426,7 +426,7 @@ private fun HomePage(
     val statusError: Boolean
     when (state) {
         ConnectionState.Disconnected -> {
-            statusTitle = "尚未连接"
+            statusTitle = "等待连接"
             statusDetail = "点击连接以启用 ${profile.mode.label}"
             statusIcon = Icons.TwoTone.LinkOff
             statusContainer = null
@@ -579,14 +579,14 @@ private fun ProfilePage(
         uri ?: return@rememberLauncherForActivityResult
         runCatching {
             val content = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
-                ?: error("无法读取配置文件")
+                ?: error("配置文件读取失败")
             onSave(json.decodeFromString<ConnectionProfile>(content).copy(clientData = ""))
         }.onFailure { Logger.e("Profile", "Failed to import profile", it) }
     }
     PageScaffold("设置", bottomPadding) {
         item {
             SegmentedColumn("配置文件") {
-                item { SettingsBaseWidget("导出当前配置", "敏感凭据和会话不会写入文件", Icons.TwoTone.Info, onClick = { exportLauncher.launch("distrust-${stored.name}.json") }) }
+                item { SettingsBaseWidget("导出当前配置", "仅导出连接与策略参数", Icons.TwoTone.Info, onClick = { exportLauncher.launch("distrust-${stored.name}.json") }) }
                 item { SettingsBaseWidget("导入配置", "从 Distrust JSON 配置覆盖当前档案", Icons.TwoTone.Settings, onClick = { importLauncher.launch(arrayOf("application/json", "text/plain")) }) }
             }
         }
@@ -784,7 +784,7 @@ private fun ProxySettingsPage(stored: ConnectionProfile, onSave: (ConnectionProf
         item {
             EditorFields {
                 Text("直连上游代理", style = MaterialTheme.typography.titleSmall)
-                Text("仅用于未命中校园 VPN Resource 的 TCP 连接。留空表示直接连接。", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("为校园 VPN Resource 之外的 TCP 连接指定出口。留空表示直接连接。", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 SectionTextField(
                     draft.dialDirectProxy,
                     { draft = draft.copy(dialDirectProxy = it.trim()) },
@@ -808,7 +808,7 @@ private fun ProxySettingsPage(stored: ConnectionProfile, onSave: (ConnectionProf
         item {
             EditorFields {
                 Text("SOCKS5 鉴权", style = MaterialTheme.typography.titleSmall, color = if (localProxyEnabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f))
-                Text(if (localProxyEnabled) "用户名和密码同时填写时启用；SOCKS5 本身不会加密流量或凭据。" else "系统 VPN 模式不启动本地代理监听。", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(if (localProxyEnabled) "用户名和密码同时填写时启用；SOCKS5 以明文方式传输流量与凭据。" else "切换到本地代理模式后可编辑。", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 SectionTextField(draft.socksUsername, { draft = draft.copy(socksUsername = it) }, "用户名（可选）", enabled = localProxyEnabled)
                 SectionTextField(draft.socksPassword, { draft = draft.copy(socksPassword = it) }, "密码（可选）", enabled = localProxyEnabled, visualTransformation = PasswordVisualTransformation())
             }
@@ -828,10 +828,10 @@ private fun PolicySettingsPage(stored: ConnectionProfile, onSave: (ConnectionPro
     EditorScaffold("DNS 与分流", true, onBack, { onSave(draft); onBack() }) {
         item {
             SegmentedColumn("策略") {
-                item { SettingsSwitchWidget("代理全部流量", "忽略服务端分流边界", Icons.TwoTone.Shield, draft.proxyAll) { draft = draft.copy(proxyAll = it) } }
-                item { SettingsSwitchWidget("忽略服务器配置", "仅使用本地配置", Icons.TwoTone.Settings, draft.disableServerConfig) { draft = draft.copy(disableServerConfig = it) } }
-                item { SettingsSwitchWidget("使用本地 DNS", "不通过 VPN 查询服务端策略 DNS", Icons.TwoTone.Settings, draft.disableRemoteDns) { draft = draft.copy(disableRemoteDns = it) } }
-                item { SettingsSwitchWidget("跳过域名资源", "不根据服务端 Domain Resource 决定 VPN 路由", Icons.TwoTone.Shield, draft.skipDomainResource) { draft = draft.copy(skipDomainResource = it) } }
+                item { SettingsSwitchWidget("代理全部流量", "所有请求优先匹配服务端资源", Icons.TwoTone.Shield, draft.proxyAll) { draft = draft.copy(proxyAll = it) } }
+                item { SettingsSwitchWidget("本地配置模式", "以本地路由和 DNS 配置为准", Icons.TwoTone.Settings, draft.disableServerConfig) { draft = draft.copy(disableServerConfig = it) } }
+                item { SettingsSwitchWidget("使用本地 DNS", "通过 Android 系统与直连备用 DNS 解析", Icons.TwoTone.Settings, draft.disableRemoteDns) { draft = draft.copy(disableRemoteDns = it) } }
+                item { SettingsSwitchWidget("仅使用 IP 资源", "根据服务端 IP Resource 决定 VPN 路由", Icons.TwoTone.Shield, draft.skipDomainResource) { draft = draft.copy(skipDomainResource = it) } }
             }
         }
         item {
@@ -843,7 +843,7 @@ private fun PolicySettingsPage(stored: ConnectionProfile, onSave: (ConnectionPro
                     draft = draft.copy(customDns = value.lineSequence().mapNotNull { line -> line.split('=', limit = 2).takeIf { it.size == 2 }?.let { it[0].trim() to it[1].trim() } }.toMap())
                 }, "自定义 DNS", singleLine = false, supportingText = "高级覆盖：域名=IP")
                 SectionTextField(draft.dnsTtl.toString(), { it.toIntOrNull()?.let { v -> draft = draft.copy(dnsTtl = v.coerceAtLeast(1)) } }, "DNS 缓存时间（秒）", keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                SectionTextField(draft.customProxyDomains.joinToString("\n"), { value -> draft = draft.copy(customProxyDomains = value.lines().map(String::trim).filter(String::isNotBlank).distinct()) }, "强制代理域名", singleLine = false, supportingText = "每行一个域名；即使没有服务端 Domain Resource 也尝试通过 VPN")
+                SectionTextField(draft.customProxyDomains.joinToString("\n"), { value -> draft = draft.copy(customProxyDomains = value.lines().map(String::trim).filter(String::isNotBlank).distinct()) }, "强制代理域名", singleLine = false, supportingText = "每行一个域名；服务端域名规则之外的条目也尝试通过 VPN")
             }
         }
     }
@@ -867,11 +867,11 @@ private fun SessionSettingsPage(
             SegmentedColumn("连接保活") {
                 item {
                     SettingsSwitchWidget(
-                        "禁用应用层保活",
-                        "关闭每分钟一次的 DNS/HTTP 会话探测",
+                        "应用层保活",
+                        "每分钟执行一次 DNS/HTTP 会话探测",
                         Icons.TwoTone.Settings,
-                        draft.disableKeepAlive,
-                    ) { draft = draft.copy(disableKeepAlive = it) }
+                        !draft.disableKeepAlive,
+                    ) { draft = draft.copy(disableKeepAlive = !it) }
                 }
             }
         }
@@ -891,15 +891,15 @@ private fun SessionSettingsPage(
         }
         item {
             EditorFields {
-                SectionTextField(draft.updateBestNodesInterval.toString(), { it.toIntOrNull()?.let { v -> draft = draft.copy(updateBestNodesInterval = v.coerceAtLeast(0)) } }, "节点优选间隔（秒）", supportingText = "0 表示禁用", keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                SectionTextField(draft.sessionRefreshInterval.toString(), { it.toIntOrNull()?.let { v -> draft = draft.copy(sessionRefreshInterval = v.coerceAtLeast(0)) } }, "会话刷新间隔（秒）", supportingText = "0 表示禁用", keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                SectionTextField(draft.updateBestNodesInterval.toString(), { it.toIntOrNull()?.let { v -> draft = draft.copy(updateBestNodesInterval = v.coerceAtLeast(0)) } }, "节点优选间隔（秒）", supportingText = "设置为 0 时停止定时优选", keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                SectionTextField(draft.sessionRefreshInterval.toString(), { it.toIntOrNull()?.let { v -> draft = draft.copy(sessionRefreshInterval = v.coerceAtLeast(0)) } }, "会话刷新间隔（秒）", supportingText = "设置为 0 时停止定时刷新", keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
             }
         }
         item {
             SegmentedColumn("已保存会话") {
                 item {
                     SettingsBaseWidget(
-                        title = if (stored.clientData.isBlank()) "没有保存的会话" else "清除保存的会话",
+                        title = if (stored.clientData.isBlank()) "等待会话认证" else "清除保存的会话",
                         description = if (stored.clientData.isBlank()) "下次连接需要重新认证" else "删除加密 Cookie，并停止当前连接",
                         icon = Icons.Rounded.DeleteSweep,
                         enabled = stored.clientData.isNotBlank(),
@@ -1033,13 +1033,13 @@ private fun DnsCacheSettingsPage(
             }
             item {
                 SegmentedColumn("历史成功地址") {
-                    if (history.isEmpty()) item { SettingsBaseWidget("暂无记录", namespace, Icons.TwoTone.Info) }
+                    if (history.isEmpty()) item { SettingsBaseWidget("等待产生历史记录", namespace, Icons.TwoTone.Info) }
                     history.forEach { entry -> item(key = entry.host) { SettingsBaseWidget(entry.host, entry.addresses.joinToString(), Icons.TwoTone.Settings) } }
                 }
             }
             item {
                 SegmentedColumn("当前 FakeDNS") {
-                    if (fakeDns.isEmpty()) item { SettingsBaseWidget("暂无映射", fakeDnsError ?: "仅在连接并访问域名资源后产生", Icons.TwoTone.Info) }
+                    if (fakeDns.isEmpty()) item { SettingsBaseWidget("等待产生 FakeDNS 映射", fakeDnsError ?: "连接并访问域名资源后显示", Icons.TwoTone.Info) }
                     fakeDns.toSortedMap().forEach { (host, address) -> item(key = host) { SettingsBaseWidget(host, address, Icons.TwoTone.Shield) } }
                 }
             }
@@ -1079,7 +1079,7 @@ private fun LogPage(logs: List<LogEntry>, onClear: () -> Unit, onExport: (List<L
                 }
             }
         }
-        if (filtered.isEmpty()) item { Text("没有匹配的日志", Modifier.padding(24.dp), color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        if (filtered.isEmpty()) item { Text("等待符合筛选条件的日志", Modifier.padding(24.dp), color = MaterialTheme.colorScheme.onSurfaceVariant) }
         items(filtered.asReversed(), key = { "${it.timestamp}-${it.tag}-${it.message.hashCode()}" }) { entry ->
             val color = when (entry.level) {
                 LogLevel.VERBOSE, LogLevel.DEBUG -> MaterialTheme.colorScheme.onSurfaceVariant
@@ -1179,7 +1179,7 @@ private fun AuthChallengeDialog(challengeJson: String, onSubmit: (String) -> Uni
                 if (payload?.optBoolean("canSkipSecondaryAuth") == true) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(skipSecondary, { skipSecondary = it })
-                        Text("跳过后续二次认证")
+                        Text("仅完成当前认证步骤")
                     }
                 }
             }

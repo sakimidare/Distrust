@@ -148,7 +148,7 @@ class DistrustVpnService : VpnService() {
 
             tun = builder.establish()
             if (tun == null) {
-                fail("Android 未能创建 TUN 接口，请重新授权 VPN")
+                fail("Android TUN 接口创建失败，请重新授权 VPN")
                 return@launch
             }
             Logger.d("VpnService", "Android TUN established; mtu=${negotiated.mtu}")
