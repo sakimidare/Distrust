@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -45,6 +46,7 @@ import androidx.compose.material.icons.rounded.DeleteSweep
 import androidx.compose.material.icons.rounded.Save
 import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.material.icons.twotone.ContentCopy
+import androidx.compose.material.icons.twotone.Edit
 import androidx.compose.material.icons.twotone.Home
 import androidx.compose.material.icons.twotone.Info
 import androidx.compose.material.icons.twotone.Key
@@ -120,6 +122,7 @@ import idont.trust.atrust.ui.component.SegmentedColumn
 import idont.trust.atrust.ui.component.SettingsBaseWidget
 import idont.trust.atrust.ui.component.SettingsSwitchWidget
 import idont.trust.atrust.ui.component.SegmentedControlWidget
+import idont.trust.atrust.ui.component.SettingsJumpPageWidget
 import idont.trust.atrust.ui.theme.ThemeConfig
 import idont.trust.atrust.util.ProxyConfigFormatter
 import java.time.ZoneId
@@ -198,6 +201,7 @@ fun DistrustApp(
             MainShell(
                 profile, connectionState, logs, snackbar,
                 onConnect, onDisconnect, onClearLogs, onSaveProfile,
+                onNavigate = push,
                 onOpenWizard = {
                     onResetAuthDiscovery()
                     push(AppRoute.Wizard)
@@ -242,6 +246,18 @@ fun DistrustApp(
                 )
             }
         }
+        entry<AppRoute.ConnectionSettings>(swipeDismiss = swipeDirection) {
+            ConnectionSettingsPage(profile, onSaveProfile, pop)
+        }
+        entry<AppRoute.ProxySettings>(swipeDismiss = swipeDirection) {
+            ProxySettingsPage(profile, onSaveProfile, pop)
+        }
+        entry<AppRoute.PolicySettings>(swipeDismiss = swipeDirection) {
+            PolicySettingsPage(profile, onSaveProfile, pop)
+        }
+        entry<AppRoute.SessionSettings>(swipeDismiss = swipeDirection) {
+            SessionSettingsPage(profile, onSaveProfile, pop)
+        }
     }
 }
 
@@ -255,6 +271,7 @@ private fun MainShell(
     onDisconnect: () -> Unit,
     onClearLogs: () -> Unit,
     onSaveProfile: (ConnectionProfile) -> Unit,
+    onNavigate: (AppRoute) -> Unit,
     onOpenWizard: () -> Unit,
 ) {
     val destinations = Destination.entries
@@ -275,8 +292,8 @@ private fun MainShell(
                 modifier = Modifier.fillMaxSize(),
             ) { page ->
                 when (destinations[page]) {
-                    Destination.HOME -> HomePage(profile, state, onConnect, onDisconnect, onOpenWizard, bottomPadding)
-                    Destination.PROFILE -> ProfilePage(profile, onSaveProfile, bottomPadding)
+                    Destination.HOME -> HomePage(profile, state, onConnect, onDisconnect, onSaveProfile, onNavigate, onOpenWizard, bottomPadding)
+                    Destination.PROFILE -> ProfilePage(profile, onNavigate, onOpenWizard, bottomPadding)
                     Destination.LOGS -> LogPage(logs, onClearLogs, bottomPadding)
                     Destination.ABOUT -> AboutPage(bottomPadding)
                 }
@@ -369,9 +386,13 @@ private fun HomePage(
     state: ConnectionState,
     onConnect: (ConnectionProfile) -> Unit,
     onDisconnect: () -> Unit,
+    onSaveProfile: (ConnectionProfile) -> Unit,
+    onNavigate: (AppRoute) -> Unit,
     onOpenWizard: () -> Unit,
     bottomPadding: Dp,
 ) {
+    var showModeDialog by remember { mutableStateOf(false) }
+    var editingPort by remember { mutableStateOf<ProxyPort?>(null) }
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val scrollState = rememberScrollState()
     val active = state is ConnectionState.Connecting || state is ConnectionState.Connected
@@ -424,13 +445,13 @@ private fun HomePage(
             )
             Spacer(Modifier.height(10.dp))
             SegmentedColumn("连接信息", contentPadding = PaddingValues(horizontal = 0.dp, vertical = 4.dp)) {
-                item { SettingsBaseWidget(profile.mode.label, if (profile.mode == ConnectionMode.LOCAL_PROXY) "SOCKS5/HTTP 二级代理" else "接管系统选定流量", if (profile.mode == ConnectionMode.LOCAL_PROXY) Icons.TwoTone.Lan else Icons.TwoTone.Shield) }
-                item { SettingsBaseWidget("协议与服务器", "${profile.protocol.label} · ${profile.server}:${profile.port}", Icons.TwoTone.Key) }
+                item { SettingsBaseWidget(profile.mode.label, if (profile.mode == ConnectionMode.LOCAL_PROXY) "SOCKS5/HTTP 二级代理" else "接管系统选定流量", if (profile.mode == ConnectionMode.LOCAL_PROXY) Icons.TwoTone.Lan else Icons.TwoTone.Shield, onClick = { showModeDialog = true }, trailingContent = { Icon(Icons.TwoTone.Edit, "修改") }) }
+                item { SettingsJumpPageWidget("协议与服务器", "${profile.protocol.label} · ${profile.server}:${profile.port}", Icons.TwoTone.Key) { onNavigate(AppRoute.ConnectionSettings) } }
                 item(visible = state is ConnectionState.Connected) { SettingsBaseWidget("会话地址", (state as? ConnectionState.Connected)?.endpoint.orEmpty(), Icons.TwoTone.Shield) }
             }
             SegmentedColumn("本地代理", contentPadding = PaddingValues(horizontal = 0.dp, vertical = 4.dp)) {
-                item { SettingsBaseWidget("SOCKS5", "127.0.0.1:${profile.socksPort}", Icons.TwoTone.Lan) }
-                item { SettingsBaseWidget("HTTP", "127.0.0.1:${profile.httpPort}", Icons.TwoTone.Lan) }
+                item { SettingsBaseWidget("SOCKS5", "127.0.0.1:${profile.socksPort}", Icons.TwoTone.Lan, onClick = { editingPort = ProxyPort.SOCKS5 }, trailingContent = { Icon(Icons.TwoTone.Edit, "修改") }) }
+                item { SettingsBaseWidget("HTTP", "127.0.0.1:${profile.httpPort}", Icons.TwoTone.Lan, onClick = { editingPort = ProxyPort.HTTP }, trailingContent = { Icon(Icons.TwoTone.Edit, "修改") }) }
                 item { ProxyCopyWidget(profile) }
             }
             SegmentedColumn("工具", contentPadding = PaddingValues(horizontal = 0.dp, vertical = 4.dp)) {
@@ -438,6 +459,24 @@ private fun HomePage(
             }
             Spacer(Modifier.height(bottomPadding + 16.dp))
         }
+    }
+    if (showModeDialog) {
+        ModeSelectionDialog(
+            selected = profile.mode,
+            onDismiss = { showModeDialog = false },
+            onSelect = { onSaveProfile(profile.copy(mode = it)); showModeDialog = false },
+        )
+    }
+    editingPort?.let { port ->
+        PortEditorDialog(
+            type = port,
+            current = if (port == ProxyPort.SOCKS5) profile.socksPort else profile.httpPort,
+            onDismiss = { editingPort = null },
+            onSave = { value ->
+                onSaveProfile(if (port == ProxyPort.SOCKS5) profile.copy(socksPort = value) else profile.copy(httpPort = value))
+                editingPort = null
+            },
+        )
     }
 }
 
@@ -450,28 +489,146 @@ private fun ProxyCopyWidget(profile: ConnectionProfile) {
 }
 
 @Composable
-private fun ProfilePage(stored: ConnectionProfile, onSave: (ConnectionProfile) -> Unit, bottomPadding: Dp) {
-    var draft by remember(stored) { mutableStateOf(stored) }
-    val issues = ProfileValidator.validate(draft)
-    PageScaffold("连接配置", bottomPadding, actions = {
-        IconButton(onClick = { if (issues.isEmpty()) onSave(draft) }, enabled = issues.isEmpty()) {
-            Icon(Icons.Rounded.Save, "保存")
-        }
-    }) {
+private fun ProfilePage(
+    stored: ConnectionProfile,
+    onNavigate: (AppRoute) -> Unit,
+    onOpenWizard: () -> Unit,
+    bottomPadding: Dp,
+) {
+    PageScaffold("设置", bottomPadding) {
         item {
-            SegmentedColumn("连接方式") {
-                item {
-                    SegmentedControlWidget("运行模式") {
-                        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(top = 8.dp)) {
-                            ConnectionMode.entries.forEachIndexed { index, mode ->
-                                SegmentedButton(draft.mode == mode, { draft = draft.copy(mode = mode) }, SegmentedButtonDefaults.itemShape(index, ConnectionMode.entries.size)) { Text(mode.shortLabel) }
-                            }
-                        }
+            SegmentedColumn("连接") {
+                item { SettingsJumpPageWidget("服务器与认证", "${stored.protocol.label} · ${stored.server}:${stored.port}", Icons.TwoTone.Key) { onNavigate(AppRoute.ConnectionSettings) } }
+                item { SettingsJumpPageWidget("本地代理", "${stored.mode.label} · SOCKS5 ${stored.socksPort} · HTTP ${stored.httpPort}", Icons.TwoTone.Lan) { onNavigate(AppRoute.ProxySettings) } }
+                item { SettingsJumpPageWidget("配置向导", "重新发现认证方式并创建连接配置", Icons.TwoTone.Tune, onClick = onOpenWizard) }
+            }
+        }
+        item {
+            SegmentedColumn("高级") {
+                item { SettingsJumpPageWidget("DNS 与分流", "资源策略、自定义 DNS 与路由", Icons.TwoTone.Shield) { onNavigate(AppRoute.PolicySettings) } }
+                item { SettingsJumpPageWidget("aTrust 会话", "节点优选和会话刷新间隔", Icons.TwoTone.Settings) { onNavigate(AppRoute.SessionSettings) } }
+            }
+        }
+    }
+}
+
+private enum class ProxyPort(val title: String) {
+    SOCKS5("SOCKS5 端口"),
+    HTTP("HTTP 端口"),
+}
+
+@Composable
+private fun ModeSelectionDialog(
+    selected: ConnectionMode,
+    onDismiss: () -> Unit,
+    onSelect: (ConnectionMode) -> Unit,
+) {
+    var choice by remember(selected) { mutableStateOf(selected) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(32.dp),
+        title = { Text("运行模式") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Text("选择 Distrust 如何向其他应用提供连接。", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                    ConnectionMode.entries.forEachIndexed { index, mode ->
+                        SegmentedButton(
+                            selected = choice == mode,
+                            onClick = { choice = mode },
+                            shape = SegmentedButtonDefaults.itemShape(index, ConnectionMode.entries.size),
+                        ) { Text(mode.shortLabel) }
                     }
                 }
+            }
+        },
+        confirmButton = { TextButton(onClick = { onSelect(choice) }) { Text("保存") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
+    )
+}
+
+@Composable
+private fun PortEditorDialog(
+    type: ProxyPort,
+    current: Int,
+    onDismiss: () -> Unit,
+    onSave: (Int) -> Unit,
+) {
+    var value by remember(type, current) { mutableStateOf(current.toString()) }
+    val port = value.toIntOrNull()
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(32.dp),
+        title = { Text(type.title) },
+        text = {
+            SectionTextField(
+                value = value,
+                onValueChange = { value = it.filter(Char::isDigit).take(5) },
+                label = "端口",
+                supportingText = if (port == null || port !in 1..65535) "请输入 1–65535" else "监听地址 127.0.0.1:$port",
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            )
+        },
+        confirmButton = { TextButton(enabled = port in 1..65535, onClick = { onSave(requireNotNull(port)) }) { Text("保存") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
+    )
+}
+
+@Composable
+private fun EditorScaffold(
+    title: String,
+    saveEnabled: Boolean = true,
+    onBack: () -> Unit,
+    onSave: () -> Unit,
+    content: androidx.compose.foundation.lazy.LazyListScope.() -> Unit,
+) {
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
+        topBar = {
+            LargeFlexibleTopAppBar(
+                title = { Text(title) },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "返回") } },
+                actions = { IconButton(enabled = saveEnabled, onClick = onSave) { Icon(Icons.Rounded.Save, "保存") } },
+                scrollBehavior = scrollBehavior,
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color.Transparent,
+                    scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+                ),
+            )
+        },
+    ) { padding ->
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(padding).imePadding(),
+            contentPadding = PaddingValues(bottom = 24.dp),
+            content = content,
+        )
+    }
+}
+
+@Composable
+private fun EditorFields(content: @Composable ColumnScope.() -> Unit) {
+    Surface(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        contentColor = MaterialTheme.colorScheme.onSurface,
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp), content = content)
+    }
+}
+
+@Composable
+private fun ConnectionSettingsPage(stored: ConnectionProfile, onSave: (ConnectionProfile) -> Unit, onBack: () -> Unit) {
+    var draft by remember(stored) { mutableStateOf(stored) }
+    val valid = draft.server.isNotBlank() && draft.port in 1..65535
+    EditorScaffold("服务器与认证", valid, onBack, { onSave(draft); onBack() }) {
+        item {
+            SegmentedColumn("协议") {
                 item {
                     SegmentedControlWidget("VPN 协议") {
-                        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(top = 8.dp)) {
+                        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
                             VpnProtocol.entries.forEachIndexed { index, protocol ->
                                 SegmentedButton(draft.protocol == protocol, { draft = draft.copy(protocol = protocol) }, SegmentedButtonDefaults.itemShape(index, VpnProtocol.entries.size)) { Text(protocol.label) }
                             }
@@ -481,21 +638,56 @@ private fun ProfilePage(stored: ConnectionProfile, onSave: (ConnectionProfile) -
             }
         }
         item {
-            Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            EditorFields {
                 SectionTextField(draft.server, { draft = draft.copy(server = it) }, "服务器")
                 SectionTextField(draft.port.toString(), { it.toIntOrNull()?.let { v -> draft = draft.copy(port = v.coerceIn(1, 65535)) } }, "端口", keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+            }
+        }
+        item {
+            EditorFields {
                 SectionTextField(draft.username, { draft = draft.copy(username = it) }, "账号")
                 SectionTextField(draft.password, { draft = draft.copy(password = it) }, "密码", visualTransformation = PasswordVisualTransformation())
                 if (draft.protocol == VpnProtocol.ATRUST) {
                     SectionTextField(draft.loginDomain, { draft = draft.copy(loginDomain = it) }, "登录域")
                     SectionTextField(draft.authType, { draft = draft.copy(authType = it) }, "认证类型", supportingText = "cas、psw、smsCheckCode")
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    SectionTextField(draft.socksPort.toString(), { it.toIntOrNull()?.let { v -> draft = draft.copy(socksPort = v) } }, "SOCKS5", Modifier.weight(1f), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                    SectionTextField(draft.httpPort.toString(), { it.toIntOrNull()?.let { v -> draft = draft.copy(httpPort = v) } }, "HTTP", Modifier.weight(1f), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                    SectionTextField(draft.phone, { draft = draft.copy(phone = it) }, "手机号码（可选）")
+                    SectionTextField(draft.totpSecret, { draft = draft.copy(totpSecret = it) }, "TOTP 密钥（可选）", visualTransformation = PasswordVisualTransformation())
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ProxySettingsPage(stored: ConnectionProfile, onSave: (ConnectionProfile) -> Unit, onBack: () -> Unit) {
+    var draft by remember(stored) { mutableStateOf(stored) }
+    EditorScaffold("本地代理", true, onBack, { onSave(draft); onBack() }) {
+        item {
+            SegmentedColumn("运行方式") {
+                item {
+                    SegmentedControlWidget("运行模式") {
+                        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                            ConnectionMode.entries.forEachIndexed { index, mode ->
+                                SegmentedButton(draft.mode == mode, { draft = draft.copy(mode = mode) }, SegmentedButtonDefaults.itemShape(index, ConnectionMode.entries.size)) { Text(mode.shortLabel) }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        item {
+            EditorFields {
+                SectionTextField(draft.socksPort.toString(), { it.toIntOrNull()?.let { v -> draft = draft.copy(socksPort = v.coerceIn(1, 65535)) } }, "SOCKS5 端口", keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                SectionTextField(draft.httpPort.toString(), { it.toIntOrNull()?.let { v -> draft = draft.copy(httpPort = v.coerceIn(1, 65535)) } }, "HTTP 端口", keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+            }
+        }
+    }
+}
+
+@Composable
+private fun PolicySettingsPage(stored: ConnectionProfile, onSave: (ConnectionProfile) -> Unit, onBack: () -> Unit) {
+    var draft by remember(stored) { mutableStateOf(stored) }
+    EditorScaffold("DNS 与分流", true, onBack, { onSave(draft); onBack() }) {
         item {
             SegmentedColumn("策略") {
                 item { SettingsSwitchWidget("代理全部流量", "忽略服务端分流边界", Icons.TwoTone.Shield, draft.proxyAll) { draft = draft.copy(proxyAll = it) } }
@@ -503,7 +695,7 @@ private fun ProfilePage(stored: ConnectionProfile, onSave: (ConnectionProfile) -
             }
         }
         item {
-            Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            EditorFields {
                 SectionTextField(draft.routes.joinToString("\n"), { draft = draft.copy(routes = it.lines().map(String::trim).filter(String::isNotBlank)) }, "分流网段", singleLine = false, supportingText = "每行一个 CIDR")
                 SectionTextField(draft.dnsServers.joinToString("\n"), { draft = draft.copy(dnsServers = it.lines().map(String::trim).filter(String::isNotBlank)) }, "DNS 服务器", singleLine = false)
                 SectionTextField(draft.customDns.entries.joinToString("\n") { "${it.key}=${it.value}" }, { value ->
@@ -512,12 +704,18 @@ private fun ProfilePage(stored: ConnectionProfile, onSave: (ConnectionProfile) -
                 SectionTextField(draft.dnsTtl.toString(), { it.toIntOrNull()?.let { v -> draft = draft.copy(dnsTtl = v.coerceAtLeast(1)) } }, "DNS 缓存时间（秒）", keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
             }
         }
-        issues.firstOrNull()?.let { issue -> item { Text(issue.message, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(16.dp)) } }
+    }
+}
+
+@Composable
+private fun SessionSettingsPage(stored: ConnectionProfile, onSave: (ConnectionProfile) -> Unit, onBack: () -> Unit) {
+    var draft by remember(stored) { mutableStateOf(stored) }
+    EditorScaffold("aTrust 会话", true, onBack, { onSave(draft); onBack() }) {
         item {
-            FilledTonalButton(
-                onClick = { onSave(draft) }, enabled = issues.isEmpty(),
-                modifier = Modifier.fillMaxWidth().padding(16.dp).height(56.dp), shape = RoundedCornerShape(20.dp),
-            ) { Icon(Icons.Rounded.Save, null); Spacer(Modifier.width(8.dp)); Text("保存配置") }
+            EditorFields {
+                SectionTextField(draft.updateBestNodesInterval.toString(), { it.toIntOrNull()?.let { v -> draft = draft.copy(updateBestNodesInterval = v.coerceAtLeast(0)) } }, "节点优选间隔（秒）", supportingText = "0 表示禁用", keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                SectionTextField(draft.sessionRefreshInterval.toString(), { it.toIntOrNull()?.let { v -> draft = draft.copy(sessionRefreshInterval = v.coerceAtLeast(0)) } }, "会话刷新间隔（秒）", supportingText = "0 表示禁用", keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+            }
         }
     }
 }
@@ -560,7 +758,7 @@ private fun AboutPage(bottomPadding: Dp) {
                 Surface(shape = RoundedCornerShape(28.dp), color = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.size(88.dp)) {
                     Box(contentAlignment = Alignment.Center) { Icon(Icons.TwoTone.Shield, null, Modifier.size(48.dp), tint = MaterialTheme.colorScheme.primary) }
                 }
-                Text("Distrust", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold)
+                Text("Distrust", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text("透明、原生的校园网络连接", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
@@ -577,7 +775,7 @@ private fun AboutPage(bottomPadding: Dp) {
 @Composable
 private fun SubPage(title: String, onBack: () -> Unit, content: @Composable () -> Unit) {
     Scaffold(
-        containerColor = Color.Transparent,
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             LargeFlexibleTopAppBar(
                 title = { Text(title) },
@@ -662,7 +860,7 @@ private val previewLogs = listOf(
 @Preview(name = "Home · disconnected dark", showSystemUi = true, uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
 private fun HomeDisconnectedPreview() = DistrustTheme {
-    HomePage(previewProfile, ConnectionState.Disconnected, {}, {}, {}, 0.dp)
+    HomePage(previewProfile, ConnectionState.Disconnected, {}, {}, {}, {}, {}, 0.dp)
 }
 
 @Preview(name = "Home · connected", showSystemUi = true)
@@ -671,20 +869,56 @@ private fun HomeConnectedPreview() = DistrustTheme {
     HomePage(
         previewProfile,
         ConnectionState.Connected(ConnectionMode.VPN, "10.85.4.117"),
-        {}, {}, {}, 0.dp,
+        {}, {}, {}, {}, {}, 0.dp,
     )
 }
 
 @Preview(name = "Home · error", showSystemUi = true)
 @Composable
 private fun HomeErrorPreview() = DistrustTheme {
-    HomePage(previewProfile, ConnectionState.Failed("服务器会话已过期，请重新认证"), {}, {}, {}, 0.dp)
+    HomePage(previewProfile, ConnectionState.Failed("服务器会话已过期，请重新认证"), {}, {}, {}, {}, {}, 0.dp)
 }
 
 @Preview(name = "Profile page", showSystemUi = true)
 @Composable
 private fun ProfilePagePreview() = DistrustTheme {
-    ProfilePage(previewProfile, {}, 0.dp)
+    ProfilePage(previewProfile, {}, {}, 0.dp)
+}
+
+@Preview(name = "Connection settings", showSystemUi = true)
+@Composable
+private fun ConnectionSettingsPagePreview() = DistrustTheme {
+    ConnectionSettingsPage(previewProfile, {}, {})
+}
+
+@Preview(name = "Proxy settings", showSystemUi = true)
+@Composable
+private fun ProxySettingsPagePreview() = DistrustTheme {
+    ProxySettingsPage(previewProfile, {}, {})
+}
+
+@Preview(name = "Policy settings", showSystemUi = true)
+@Composable
+private fun PolicySettingsPagePreview() = DistrustTheme {
+    PolicySettingsPage(previewProfile, {}, {})
+}
+
+@Preview(name = "Session settings", showSystemUi = true)
+@Composable
+private fun SessionSettingsPagePreview() = DistrustTheme {
+    SessionSettingsPage(previewProfile, {}, {})
+}
+
+@Preview(name = "Mode dialog", showSystemUi = true)
+@Composable
+private fun ModeSelectionDialogPreview() = DistrustTheme {
+    ModeSelectionDialog(ConnectionMode.VPN, {}, {})
+}
+
+@Preview(name = "Port dialog", showSystemUi = true)
+@Composable
+private fun PortEditorDialogPreview() = DistrustTheme {
+    PortEditorDialog(ProxyPort.SOCKS5, 11080, {}, {})
 }
 
 @Preview(name = "Log page", showSystemUi = true)
@@ -707,7 +941,7 @@ private fun MainShellPreview() = DistrustTheme {
         ConnectionState.Disconnected,
         previewLogs,
         remember { SnackbarHostState() },
-        {}, {}, {}, {}, {},
+        {}, {}, {}, {}, {}, {},
     )
 }
 
