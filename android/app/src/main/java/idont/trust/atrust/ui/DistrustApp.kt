@@ -1,15 +1,17 @@
 package idont.trust.atrust.ui
 
 import android.content.res.Configuration
+import android.content.pm.PackageManager
+import android.graphics.drawable.Drawable
 import android.graphics.BitmapFactory
 import android.util.Base64
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
@@ -26,20 +28,19 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.ReceiptLong
@@ -48,28 +49,23 @@ import androidx.compose.material.icons.rounded.Save
 import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.material.icons.twotone.ContentCopy
 import androidx.compose.material.icons.twotone.Edit
+import androidx.compose.material.icons.twotone.Error
 import androidx.compose.material.icons.twotone.Home
 import androidx.compose.material.icons.twotone.Info
 import androidx.compose.material.icons.twotone.Key
 import androidx.compose.material.icons.twotone.Lan
-import androidx.compose.material.icons.twotone.Error
 import androidx.compose.material.icons.twotone.LinkOff
 import androidx.compose.material.icons.twotone.Settings
 import androidx.compose.material.icons.twotone.Shield
 import androidx.compose.material.icons.twotone.Sync
 import androidx.compose.material.icons.twotone.TaskAlt
 import androidx.compose.material.icons.twotone.Tune
-import androidx.compose.material.icons.twotone.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FlexibleBottomAppBar
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LargeFlexibleTopAppBar
@@ -102,38 +98,43 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.core.graphics.drawable.toBitmap
 import idont.trust.atrust.logging.LogEntry
 import idont.trust.atrust.logging.LogLevel
 import idont.trust.atrust.logging.Logger
 import idont.trust.atrust.model.ConnectionMode
 import idont.trust.atrust.model.ConnectionProfile
-import idont.trust.atrust.model.ProfileValidator
+import idont.trust.atrust.model.AppRoutingMode
 import idont.trust.atrust.model.VpnProtocol
+import idont.trust.atrust.data.DnsHistoryStore
 import idont.trust.atrust.service.ConnectionState
 import idont.trust.atrust.ui.component.SectionTextField
 import idont.trust.atrust.ui.component.SegmentedColumn
-import idont.trust.atrust.ui.component.SettingsBaseWidget
-import idont.trust.atrust.ui.component.SettingsSwitchWidget
 import idont.trust.atrust.ui.component.SegmentedControlWidget
+import idont.trust.atrust.ui.component.SettingsBaseWidget
 import idont.trust.atrust.ui.component.SettingsJumpPageWidget
+import idont.trust.atrust.ui.component.SettingsSwitchWidget
+import idont.trust.atrust.ui.navigation.AppRoute
+import idont.trust.atrust.ui.theme.DistrustTheme
 import idont.trust.atrust.ui.theme.ThemeConfig
 import idont.trust.atrust.util.ProxyConfigFormatter
-import java.time.ZoneId
-import java.time.Instant
-import java.time.format.DateTimeFormatter
-import java.net.URI
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import org.json.JSONObject
 import top.yukonga.miuix.kmp.nav.core.NavCornerClipMode
 import top.yukonga.miuix.kmp.nav.core.NavDisplay
@@ -141,8 +142,10 @@ import top.yukonga.miuix.kmp.nav.core.NavDisplayEffects
 import top.yukonga.miuix.kmp.nav.core.rememberNavBackStack
 import top.yukonga.miuix.kmp.nav.transition.NavSwipeDirection
 import top.yukonga.miuix.kmp.nav.transition.NavTransitions
-import idont.trust.atrust.ui.theme.DistrustTheme
-import idont.trust.atrust.ui.navigation.AppRoute
+import java.net.URI
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 private enum class Destination(val label: String, val icon: ImageVector) {
     HOME("连接", Icons.TwoTone.Home),
@@ -163,7 +166,10 @@ fun DistrustApp(
     authDiscovery: AuthDiscoveryState,
     onSaveProfile: (ConnectionProfile) -> Unit,
     onClearLogs: () -> Unit,
+    onExportLogs: (List<LogEntry>) -> Unit,
     onClearSession: () -> Unit,
+    onFakeDnsSnapshot: () -> Result<Map<String, String>>,
+    onClearFakeDns: () -> Result<Unit>,
     onSubmitAuth: (String) -> Unit,
     onCancelAuth: () -> Unit,
     onFetchAuthMethods: (String, Int) -> Unit,
@@ -209,7 +215,7 @@ fun DistrustApp(
         entry<AppRoute.Main>(swipeDismiss = NavSwipeDirection.None) {
             MainShell(
                 profile, connectionState, logs, snackbar,
-                onConnect, onDisconnect, onClearLogs, onSaveProfile,
+                onConnect, onDisconnect, onClearLogs, onExportLogs, onSaveProfile,
                 onNavigate = push,
                 onOpenWizard = {
                     onResetAuthDiscovery()
@@ -267,6 +273,12 @@ fun DistrustApp(
         entry<AppRoute.SessionSettings>(swipeDismiss = swipeDirection) {
             SessionSettingsPage(profile, onSaveProfile, onClearSession, pop)
         }
+        entry<AppRoute.AppRoutingSettings>(swipeDismiss = swipeDirection) {
+            AppRoutingSettingsPage(profile, onSaveProfile, pop)
+        }
+        entry<AppRoute.DnsCacheSettings>(swipeDismiss = swipeDirection) {
+            DnsCacheSettingsPage(profile, onFakeDnsSnapshot, onClearFakeDns, pop)
+        }
     }
 }
 
@@ -279,6 +291,7 @@ private fun MainShell(
     onConnect: (ConnectionProfile) -> Unit,
     onDisconnect: () -> Unit,
     onClearLogs: () -> Unit,
+    onExportLogs: (List<LogEntry>) -> Unit,
     onSaveProfile: (ConnectionProfile) -> Unit,
     onNavigate: (AppRoute) -> Unit,
     onOpenWizard: () -> Unit,
@@ -302,8 +315,8 @@ private fun MainShell(
             ) { page ->
                 when (destinations[page]) {
                     Destination.HOME -> HomePage(profile, state, onConnect, onDisconnect, onSaveProfile, onNavigate, onOpenWizard, bottomPadding)
-                    Destination.PROFILE -> ProfilePage(profile, onNavigate, onOpenWizard, bottomPadding)
-                    Destination.LOGS -> LogPage(logs, onClearLogs, bottomPadding)
+                    Destination.PROFILE -> ProfilePage(profile, onSaveProfile, onNavigate, onOpenWizard, bottomPadding)
+                    Destination.LOGS -> LogPage(logs, onClearLogs, onExportLogs, bottomPadding)
                     Destination.ABOUT -> AboutPage(bottomPadding)
                 }
             }
@@ -548,11 +561,35 @@ private fun ProxyCopyWidget(profile: ConnectionProfile) {
 @Composable
 private fun ProfilePage(
     stored: ConnectionProfile,
+    onSave: (ConnectionProfile) -> Unit,
     onNavigate: (AppRoute) -> Unit,
     onOpenWizard: () -> Unit,
     bottomPadding: Dp,
 ) {
+    val context = LocalContext.current
+    val json = remember { Json { prettyPrint = true; ignoreUnknownKeys = true } }
+    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        uri ?: return@rememberLauncherForActivityResult
+        runCatching {
+            val safeProfile = stored.copy(password = "", totpSecret = "", socksPassword = "", clientData = "")
+            context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(json.encodeToString(safeProfile)) }
+        }.onFailure { Logger.e("Profile", "Failed to export profile", it) }
+    }
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri ?: return@rememberLauncherForActivityResult
+        runCatching {
+            val content = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+                ?: error("无法读取配置文件")
+            onSave(json.decodeFromString<ConnectionProfile>(content).copy(clientData = ""))
+        }.onFailure { Logger.e("Profile", "Failed to import profile", it) }
+    }
     PageScaffold("设置", bottomPadding) {
+        item {
+            SegmentedColumn("配置文件") {
+                item { SettingsBaseWidget("导出当前配置", "敏感凭据和会话不会写入文件", Icons.TwoTone.Info, onClick = { exportLauncher.launch("distrust-${stored.name}.json") }) }
+                item { SettingsBaseWidget("导入配置", "从 Distrust JSON 配置覆盖当前档案", Icons.TwoTone.Settings, onClick = { importLauncher.launch(arrayOf("application/json", "text/plain")) }) }
+            }
+        }
         item {
             SegmentedColumn("连接") {
                 item { SettingsJumpPageWidget("服务器与认证", "${stored.protocol.label} · ${stored.server}:${stored.port}", Icons.TwoTone.Key) { onNavigate(AppRoute.ConnectionSettings) } }
@@ -563,6 +600,8 @@ private fun ProfilePage(
         item {
             SegmentedColumn("高级") {
                 item { SettingsJumpPageWidget("DNS 与分流", "资源策略、自定义 DNS 与路由", Icons.TwoTone.Shield) { onNavigate(AppRoute.PolicySettings) } }
+                item { SettingsJumpPageWidget("DNS 缓存", "查看和清除历史成功地址与 FakeDNS", Icons.TwoTone.Settings) { onNavigate(AppRoute.DnsCacheSettings) } }
+                item { SettingsJumpPageWidget("按应用路由", "选择进入或绕过系统 VPN 的应用", Icons.TwoTone.Shield) { onNavigate(AppRoute.AppRoutingSettings) } }
                 item { SettingsJumpPageWidget("aTrust 会话", "节点优选和会话刷新间隔", Icons.TwoTone.Settings) { onNavigate(AppRoute.SessionSettings) } }
             }
         }
@@ -780,6 +819,12 @@ private fun ProxySettingsPage(stored: ConnectionProfile, onSave: (ConnectionProf
 @Composable
 private fun PolicySettingsPage(stored: ConnectionProfile, onSave: (ConnectionProfile) -> Unit, onBack: () -> Unit) {
     var draft by remember(stored) { mutableStateOf(stored) }
+    fun updateDns(index: Int, value: String) {
+        val servers = draft.dnsServers.toMutableList()
+        while (servers.size <= index) servers += ""
+        servers[index] = value.trim()
+        draft = draft.copy(dnsServers = servers.dropLastWhile(String::isBlank))
+    }
     EditorScaffold("DNS 与分流", true, onBack, { onSave(draft); onBack() }) {
         item {
             SegmentedColumn("策略") {
@@ -792,11 +837,13 @@ private fun PolicySettingsPage(stored: ConnectionProfile, onSave: (ConnectionPro
         item {
             EditorFields {
                 SectionTextField(draft.routes.joinToString("\n"), { draft = draft.copy(routes = it.lines().map(String::trim).filter(String::isNotBlank)) }, "分流网段", singleLine = false, supportingText = "每行一个 CIDR")
-                SectionTextField(draft.dnsServers.joinToString("\n"), { draft = draft.copy(dnsServers = it.lines().map(String::trim).filter(String::isNotBlank)) }, "DNS 服务器", singleLine = false)
+                SectionTextField(draft.dnsServers.getOrNull(0).orEmpty(), { updateDns(0, it) }, "主 DNS（自动）", supportingText = "留空时使用服务端下发的主策略 DNS")
+                SectionTextField(draft.dnsServers.getOrNull(1).orEmpty(), { updateDns(1, it) }, "备用 DNS（自动）", supportingText = "留空时自动选择第二策略 DNS或系统备用 DNS")
                 SectionTextField(draft.customDns.entries.joinToString("\n") { "${it.key}=${it.value}" }, { value ->
                     draft = draft.copy(customDns = value.lineSequence().mapNotNull { line -> line.split('=', limit = 2).takeIf { it.size == 2 }?.let { it[0].trim() to it[1].trim() } }.toMap())
                 }, "自定义 DNS", singleLine = false, supportingText = "高级覆盖：域名=IP")
                 SectionTextField(draft.dnsTtl.toString(), { it.toIntOrNull()?.let { v -> draft = draft.copy(dnsTtl = v.coerceAtLeast(1)) } }, "DNS 缓存时间（秒）", keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                SectionTextField(draft.customProxyDomains.joinToString("\n"), { value -> draft = draft.copy(customProxyDomains = value.lines().map(String::trim).filter(String::isNotBlank).distinct()) }, "强制代理域名", singleLine = false, supportingText = "每行一个域名；即使没有服务端 Domain Resource 也尝试通过 VPN")
             }
         }
     }
@@ -881,14 +928,159 @@ private fun SessionSettingsPage(
     }
 }
 
+private data class RoutableApp(val packageName: String, val label: String, val icon: Drawable)
+
 @Composable
-private fun LogPage(logs: List<LogEntry>, onClear: () -> Unit, bottomPadding: Dp) {
+private fun AppRoutingSettingsPage(
+    stored: ConnectionProfile,
+    onSave: (ConnectionProfile) -> Unit,
+    onBack: () -> Unit,
+) {
+    val context = LocalContext.current
+    var draft by remember(stored) { mutableStateOf(stored) }
+    var apps by remember { mutableStateOf<List<RoutableApp>>(emptyList()) }
+    var query by remember { mutableStateOf("") }
+    LaunchedEffect(Unit) {
+        apps = withContext(Dispatchers.IO) {
+            val pm = context.packageManager
+            pm.getInstalledApplications(PackageManager.GET_META_DATA)
+                .asSequence()
+                .filter { it.packageName != context.packageName && pm.getLaunchIntentForPackage(it.packageName) != null }
+                .map { RoutableApp(it.packageName, pm.getApplicationLabel(it).toString(), pm.getApplicationIcon(it)) }
+                .sortedBy { it.label.lowercase() }
+                .toList()
+        }
+    }
+    val valid = draft.appRoutingMode != AppRoutingMode.ALLOW_ONLY || draft.routedPackages.isNotEmpty()
+    val visibleApps = apps.filter { query.isBlank() || it.label.contains(query, true) || it.packageName.contains(query, true) }
+    EditorScaffold("按应用路由", valid, onBack, { onSave(draft); onBack() }) {
+        item {
+            SegmentedColumn("模式") {
+                item {
+                    SegmentedControlWidget("系统 VPN 应用范围") {
+                        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                            AppRoutingMode.entries.forEachIndexed { index, mode ->
+                                SegmentedButton(
+                                    selected = draft.appRoutingMode == mode,
+                                    onClick = { draft = draft.copy(appRoutingMode = mode) },
+                                    shape = SegmentedButtonDefaults.itemShape(index, AppRoutingMode.entries.size),
+                                ) {
+                                    Text(when (mode) { AppRoutingMode.ALL -> "全部"; AppRoutingMode.ALLOW_ONLY -> "仅选中"; AppRoutingMode.EXCLUDE -> "排除" })
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if (draft.appRoutingMode != AppRoutingMode.ALL) {
+            item {
+                EditorFields {
+                    SectionTextField(query, { query = it }, "搜索应用")
+                    if (!valid) Text("仅选中模式至少需要选择一个应用", color = MaterialTheme.colorScheme.error)
+                }
+            }
+            items(visibleApps, key = { it.packageName }) { app ->
+                Box(Modifier.padding(horizontal = 16.dp, vertical = 2.dp)) {
+                    SettingsSwitchWidget(
+                        title = app.label,
+                        description = app.packageName,
+                        checked = app.packageName in draft.routedPackages,
+                        leadingContent = {
+                            Image(
+                                bitmap = remember(app.packageName) { app.icon.toBitmap(48, 48).asImageBitmap() },
+                                contentDescription = null,
+                                modifier = Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)),
+                            )
+                        },
+                    ) { checked ->
+                        draft = draft.copy(
+                            routedPackages = if (checked) draft.routedPackages + app.packageName else draft.routedPackages - app.packageName,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DnsCacheSettingsPage(
+    profile: ConnectionProfile,
+    loadFakeDns: () -> Result<Map<String, String>>,
+    clearFakeDns: () -> Result<Unit>,
+    onBack: () -> Unit,
+) {
+    val namespace = "${profile.server}:${profile.port}"
+    var history by remember(namespace) { mutableStateOf(DnsHistoryStore.entries(namespace)) }
+    var fakeDns by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    var fakeDnsError by remember { mutableStateOf<String?>(null) }
+    fun reload() {
+        history = DnsHistoryStore.entries(namespace)
+        loadFakeDns().fold(
+            onSuccess = { fakeDns = it; fakeDnsError = null },
+            onFailure = { fakeDns = emptyMap(); fakeDnsError = it.message },
+        )
+    }
+    LaunchedEffect(namespace) { reload() }
+    SubPage("DNS 缓存", onBack) {
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
+            item {
+                Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    FilledTonalButton(onClick = { DnsHistoryStore.clear(namespace); reload() }, modifier = Modifier.weight(1f)) { Text("清除历史") }
+                    FilledTonalButton(onClick = { clearFakeDns(); reload() }, modifier = Modifier.weight(1f)) { Text("清除 FakeDNS") }
+                }
+            }
+            item {
+                SegmentedColumn("历史成功地址") {
+                    if (history.isEmpty()) item { SettingsBaseWidget("暂无记录", namespace, Icons.TwoTone.Info) }
+                    history.forEach { entry -> item(key = entry.host) { SettingsBaseWidget(entry.host, entry.addresses.joinToString(), Icons.TwoTone.Settings) } }
+                }
+            }
+            item {
+                SegmentedColumn("当前 FakeDNS") {
+                    if (fakeDns.isEmpty()) item { SettingsBaseWidget("暂无映射", fakeDnsError ?: "仅在连接并访问域名资源后产生", Icons.TwoTone.Info) }
+                    fakeDns.toSortedMap().forEach { (host, address) -> item(key = host) { SettingsBaseWidget(host, address, Icons.TwoTone.Shield) } }
+                }
+            }
+        }
+    }
+}
+
+private enum class LogFilter { ALL, INFO, WARNING, ERROR }
+
+@Composable
+private fun LogPage(logs: List<LogEntry>, onClear: () -> Unit, onExport: (List<LogEntry>) -> Unit, bottomPadding: Dp) {
     val formatter = remember { DateTimeFormatter.ofPattern("HH:mm:ss") }
+    var query by remember { mutableStateOf("") }
+    var filter by remember { mutableStateOf(LogFilter.ALL) }
+    val filtered = logs.filter { entry ->
+        val levelMatches = when (filter) {
+            LogFilter.ALL -> true
+            LogFilter.INFO -> entry.level in setOf(LogLevel.VERBOSE, LogLevel.DEBUG, LogLevel.INFO)
+            LogFilter.WARNING -> entry.level == LogLevel.WARNING
+            LogFilter.ERROR -> entry.level in setOf(LogLevel.ERROR, LogLevel.ASSERT)
+        }
+        levelMatches && (query.isBlank() || entry.tag.contains(query, true) || entry.message.contains(query, true))
+    }
     PageScaffold("运行日志", bottomPadding, actions = {
+        IconButton(onClick = { onExport(filtered) }) { Icon(Icons.Rounded.Save, "导出日志") }
         IconButton(onClick = onClear) { Icon(Icons.Rounded.DeleteSweep, "清空日志") }
     }) {
-        if (logs.isEmpty()) item { Text("暂无日志", Modifier.padding(24.dp), color = MaterialTheme.colorScheme.onSurfaceVariant) }
-        items(logs.asReversed(), key = { "${it.timestamp}-${it.tag}-${it.message.hashCode()}" }) { entry ->
+        item {
+            EditorFields {
+                SectionTextField(query, { query = it }, "搜索日志")
+                SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                    LogFilter.entries.forEachIndexed { index, value ->
+                        SegmentedButton(filter == value, { filter = value }, SegmentedButtonDefaults.itemShape(index, LogFilter.entries.size)) {
+                            Text(when (value) { LogFilter.ALL -> "全部"; LogFilter.INFO -> "信息"; LogFilter.WARNING -> "警告"; LogFilter.ERROR -> "错误" })
+                        }
+                    }
+                }
+            }
+        }
+        if (filtered.isEmpty()) item { Text("没有匹配的日志", Modifier.padding(24.dp), color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        items(filtered.asReversed(), key = { "${it.timestamp}-${it.tag}-${it.message.hashCode()}" }) { entry ->
             val color = when (entry.level) {
                 LogLevel.VERBOSE, LogLevel.DEBUG -> MaterialTheme.colorScheme.onSurfaceVariant
                 LogLevel.INFO -> MaterialTheme.colorScheme.primary
@@ -913,6 +1105,10 @@ private fun LogPage(logs: List<LogEntry>, onClear: () -> Unit, bottomPadding: Dp
 
 @Composable
 private fun AboutPage(bottomPadding: Dp) {
+    val context = LocalContext.current
+    val packageInfo = remember(context) {
+        context.packageManager.getPackageInfo(context.packageName, 0)
+    }
     PageScaffold("关于", bottomPadding) {
         item {
             Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -926,6 +1122,7 @@ private fun AboutPage(bottomPadding: Dp) {
         item {
             SegmentedColumn("应用") {
                 item { SettingsBaseWidget("原生 Android 客户端", "aTrust / EasyConnect · VPN / SOCKS5 / HTTP", Icons.TwoTone.Info) }
+                item { SettingsBaseWidget("版本", "${packageInfo.versionName} (${packageInfo.longVersionCode})", Icons.TwoTone.Info) }
                 item { SettingsBaseWidget("包名", "idont.trust.atrust", Icons.TwoTone.Key) }
                 item { SettingsBaseWidget("许可证", "GPL-3.0 / Core AGPL-3.0", Icons.TwoTone.Info) }
             }
@@ -1043,7 +1240,7 @@ private fun HomeErrorPreview() = DistrustTheme {
 @Preview(name = "Profile page", showSystemUi = true)
 @Composable
 private fun ProfilePagePreview() = DistrustTheme {
-    ProfilePage(previewProfile, {}, {}, 0.dp)
+    ProfilePage(previewProfile, {}, {}, {}, 0.dp)
 }
 
 @Preview(name = "Connection settings", showSystemUi = true)
@@ -1085,7 +1282,7 @@ private fun PortEditorDialogPreview() = DistrustTheme {
 @Preview(name = "Log page", showSystemUi = true)
 @Composable
 private fun LogPagePreview() = DistrustTheme {
-    LogPage(previewLogs, {}, 0.dp)
+    LogPage(previewLogs, {}, {}, 0.dp)
 }
 
 @Preview(name = "About page", showSystemUi = true)
@@ -1102,7 +1299,7 @@ private fun MainShellPreview() = DistrustTheme {
         ConnectionState.Disconnected,
         previewLogs,
         remember { SnackbarHostState() },
-        {}, {}, {}, {}, {}, {},
+        {}, {}, {}, {}, {}, {}, {},
     )
 }
 

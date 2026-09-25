@@ -51,6 +51,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             repository.clearClientData()
         }
     }
+    fun fakeDnsSnapshot(): Result<Map<String, String>> = core.fakeDnsSnapshot()
+    fun clearFakeDns(): Result<Unit> = core.clearFakeDns()
     fun submitAuth(responseJson: String) = AuthRuntime.respond(responseJson)
     fun cancelAuth() {
         Logger.w("Auth", "Authentication challenge cancelled by user")

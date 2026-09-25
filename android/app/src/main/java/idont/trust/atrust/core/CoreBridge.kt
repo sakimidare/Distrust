@@ -39,5 +39,7 @@ interface CoreBridge {
     fun login(profile: ConnectionProfile, onChallenge: (String) -> String): Result<NegotiatedTunnel>
     fun runTun(fileDescriptor: Int): Result<Unit>
     fun startLocalProxy(profile: ConnectionProfile, onChallenge: (String) -> String): Result<ProxySession>
+    fun fakeDnsSnapshot(): Result<Map<String, String>>
+    fun clearFakeDns(): Result<Unit>
     fun stop()
 }

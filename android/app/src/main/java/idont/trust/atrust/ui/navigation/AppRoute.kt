@@ -26,4 +26,10 @@ sealed interface AppRoute : NavKey {
 
     @Serializable
     data object SessionSettings : AppRoute
+
+    @Serializable
+    data object AppRoutingSettings : AppRoute
+
+    @Serializable
+    data object DnsCacheSettings : AppRoute
 }

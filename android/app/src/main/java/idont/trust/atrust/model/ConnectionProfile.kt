@@ -1,15 +1,27 @@
 package idont.trust.atrust.model
 
+import kotlinx.serialization.Serializable
+
+@Serializable
 enum class ConnectionMode {
     VPN,
     LOCAL_PROXY,
 }
 
+@Serializable
 enum class VpnProtocol {
     ATRUST,
     EASYCONNECT,
 }
 
+@Serializable
+enum class AppRoutingMode {
+    ALL,
+    ALLOW_ONLY,
+    EXCLUDE,
+}
+
+@Serializable
 data class ConnectionProfile(
     val name: String = "默认配置",
     val mode: ConnectionMode = ConnectionMode.LOCAL_PROXY,
@@ -40,5 +52,8 @@ data class ConnectionProfile(
     val updateBestNodesInterval: Int = 300,
     val sessionRefreshInterval: Int = 1800,
     val customDns: Map<String, String> = emptyMap(),
+    val customProxyDomains: List<String> = emptyList(),
+    val appRoutingMode: AppRoutingMode = AppRoutingMode.ALL,
+    val routedPackages: Set<String> = emptySet(),
     val clientData: String = "",
 )

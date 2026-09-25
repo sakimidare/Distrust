@@ -31,6 +31,8 @@ class GoMobileCoreBridge : CoreBridge {
     private val fetchAuthMethods: Method? = mobileClass.methodNamed("fetchAuthMethods", 2)
     private val setLogCallback: Method? = mobileClass.methodNamed("setLogCallback", 1)
     private val resourceSnapshot: Method? = mobileClass.methodNamed("resourceSnapshot", 0)
+    private val fakeDnsSnapshot: Method? = mobileClass.methodNamed("fakeDNSSnapshot", 0)
+    private val clearFakeDns: Method? = mobileClass.methodNamed("clearFakeDNS", 0)
     private val setDnsCallback: Method? = mobileClass.methodNamed("setDNSCallback", 1)
     private val setSessionCallback: Method? = mobileClass.methodNamed("setSessionCallback", 1)
     private val startStack: Method? = mobileClass.method("startStack", Long::class.javaPrimitiveType!!)
@@ -217,6 +219,22 @@ class GoMobileCoreBridge : CoreBridge {
         ).also { logResourceSnapshot() }
     }
 
+    override fun fakeDnsSnapshot(): Result<Map<String, String>> = runCatching {
+        val method = checkNotNull(fakeDnsSnapshot) { "当前核心不支持读取 FakeDNS" }
+        val result = JSONObject(method.invoke(null)?.toString().orEmpty())
+        check(result.optBoolean("ok")) { result.optString("errorMessage", "读取 FakeDNS 失败") }
+        val entries = result.optJSONObject("entries") ?: return@runCatching emptyMap()
+        buildMap {
+            entries.keys().forEach { host -> put(host, entries.optString(host)) }
+        }
+    }
+
+    override fun clearFakeDns(): Result<Unit> = runCatching {
+        val method = checkNotNull(clearFakeDns) { "当前核心不支持清除 FakeDNS" }
+        val result = JSONObject(method.invoke(null)?.toString().orEmpty())
+        check(result.optBoolean("ok")) { result.optString("errorMessage", "清除 FakeDNS 失败") }
+    }
+
     override fun stop() {
         Logger.i("GoCore", "Stopping active core session")
         runCatching { logout?.invoke(null) }
@@ -273,6 +291,7 @@ class GoMobileCoreBridge : CoreBridge {
             .put("updateBestNodesInterval", profile.updateBestNodesInterval)
             .put("sessionRefreshInterval", profile.sessionRefreshInterval)
             .put("customDns", JSONObject(profile.customDns))
+            .put("customProxyDomains", JSONArray(profile.customProxyDomains))
         val arguments = if (method.parameterCount == 2) {
             val callbackType = method.parameterTypes[1]
             val callback = Proxy.newProxyInstance(

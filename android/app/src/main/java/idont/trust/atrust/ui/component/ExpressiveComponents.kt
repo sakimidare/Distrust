@@ -121,6 +121,7 @@ fun SettingsBaseWidget(
     title: String,
     description: String? = null,
     icon: ImageVector? = null,
+    leadingContent: (@Composable () -> Unit)? = null,
     iconColor: Color? = null,
     iconSize: Dp = 24.dp,
     enabled: Boolean = true,
@@ -152,7 +153,9 @@ fun SettingsBaseWidget(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            if (icon != null) {
+            if (leadingContent != null) {
+                leadingContent()
+            } else if (icon != null) {
                 Icon(
                     icon,
                     null,
@@ -213,6 +216,7 @@ fun SettingsSwitchWidget(
     icon: ImageVector? = null,
     checked: Boolean,
     enabled: Boolean = true,
+    leadingContent: (@Composable () -> Unit)? = null,
     onCheckedChange: (Boolean) -> Unit,
 ) {
     val haptic = LocalHapticFeedback.current
@@ -232,6 +236,7 @@ fun SettingsSwitchWidget(
             title = title,
             description = description,
             icon = icon,
+            leadingContent = leadingContent,
             enabled = enabled,
             onClick = { update(!checked) },
         ) {

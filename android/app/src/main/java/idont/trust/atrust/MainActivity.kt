@@ -10,6 +10,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.core.content.FileProvider
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import idont.trust.atrust.model.ConnectionMode
@@ -20,6 +21,10 @@ import idont.trust.atrust.ui.DistrustApp
 import idont.trust.atrust.ui.MainViewModel
 import idont.trust.atrust.ui.theme.DistrustTheme
 import idont.trust.atrust.logging.Logger
+import idont.trust.atrust.logging.LogEntry
+import java.io.File
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 class MainActivity : ComponentActivity() {
     private val viewModel by viewModels<MainViewModel>()
@@ -59,10 +64,13 @@ class MainActivity : ComponentActivity() {
                     authDiscovery = authDiscovery,
                     onSaveProfile = viewModel::save,
                     onClearLogs = viewModel::clearLogs,
+                    onExportLogs = ::exportLogs,
                     onClearSession = {
                         ConnectionServiceController.stopAll(this)
                         viewModel.clearSession()
                     },
+                    onFakeDnsSnapshot = viewModel::fakeDnsSnapshot,
+                    onClearFakeDns = viewModel::clearFakeDns,
                     onSubmitAuth = viewModel::submitAuth,
                     onCancelAuth = viewModel::cancelAuth,
                     onFetchAuthMethods = viewModel::fetchAuthMethods,
@@ -91,6 +99,27 @@ class MainActivity : ComponentActivity() {
             Logger.i("MainActivity", "Requesting Android VPN permission")
             vpnPermission.launch(permissionIntent)
         }
+    }
+
+    private fun exportLogs(entries: List<LogEntry>) {
+        runCatching {
+            val directory = File(cacheDir, "exports").apply { mkdirs() }
+            val file = File(directory, "distrust-${System.currentTimeMillis()}.log")
+            val formatter = DateTimeFormatter.ISO_OFFSET_DATE_TIME.withZone(ZoneId.systemDefault())
+            file.writeText(entries.joinToString("\n") { entry ->
+                buildString {
+                    append(formatter.format(entry.timestamp)).append(' ')
+                    append(entry.level).append('/').append(entry.tag).append(": ").append(entry.message)
+                    entry.throwable?.let { append('\n').append(it) }
+                }
+            })
+            val uri = FileProvider.getUriForFile(this, "$packageName.files", file)
+            startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_STREAM, uri)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }, "导出 Distrust 日志"))
+        }.onFailure { Logger.e("MainActivity", "Failed to export logs", it) }
     }
 
     override fun onStart() {

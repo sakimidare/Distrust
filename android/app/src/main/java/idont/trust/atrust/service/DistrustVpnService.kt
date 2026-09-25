@@ -9,6 +9,7 @@ import idont.trust.atrust.core.CoreBridge
 import idont.trust.atrust.core.GoMobileCoreBridge
 import idont.trust.atrust.data.ProfileRepository
 import idont.trust.atrust.model.ConnectionMode
+import idont.trust.atrust.model.AppRoutingMode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -91,6 +92,10 @@ class DistrustVpnService : VpnService() {
         scope.launch {
             val repository = ProfileRepository(applicationContext)
             val profile = repository.profile.first()
+            if (profile.appRoutingMode == AppRoutingMode.ALLOW_ONLY && profile.routedPackages.isEmpty()) {
+                fail("按应用包含模式至少需要选择一个应用")
+                return@launch
+            }
             val negotiated = core.login(profile, AuthRuntime::request).getOrElse { error ->
                 Logger.e("VpnService", "Core login failed", error)
                 fail(error.userMessage())
@@ -115,7 +120,17 @@ class DistrustVpnService : VpnService() {
                 .addAddress(negotiated.address, negotiated.prefixLength)
 
             // The core's own gateway sockets must never re-enter this VPN.
-            runCatching { builder.addDisallowedApplication(packageName) }
+            when (profile.appRoutingMode) {
+                AppRoutingMode.ALL -> runCatching { builder.addDisallowedApplication(packageName) }
+                AppRoutingMode.EXCLUDE -> (profile.routedPackages + packageName).forEach { appPackage ->
+                    runCatching { builder.addDisallowedApplication(appPackage) }
+                        .onFailure { Logger.w("VpnService", "Ignoring unavailable excluded app '$appPackage'", it) }
+                }
+                AppRoutingMode.ALLOW_ONLY -> profile.routedPackages.filterNot { it == packageName }.forEach { appPackage ->
+                    runCatching { builder.addAllowedApplication(appPackage) }
+                        .onFailure { Logger.w("VpnService", "Ignoring unavailable allowed app '$appPackage'", it) }
+                }
+            }
             val routes = negotiated.routes.ifEmpty { profile.routes }
             routes.forEach { route ->
                 parseCidr(route)?.let { (address, prefix) -> builder.addRoute(address, prefix) }

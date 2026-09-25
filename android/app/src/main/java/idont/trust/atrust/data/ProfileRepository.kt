@@ -10,6 +10,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import idont.trust.atrust.model.ConnectionMode
 import idont.trust.atrust.model.ConnectionProfile
 import idont.trust.atrust.model.VpnProtocol
+import idont.trust.atrust.model.AppRoutingMode
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import idont.trust.atrust.logging.Logger
@@ -54,6 +55,9 @@ class ProfileRepository(private val context: Context) {
             values[Keys.UPDATE_BEST_NODES] = profile.updateBestNodesInterval
             values[Keys.SESSION_REFRESH] = profile.sessionRefreshInterval
             values[Keys.CUSTOM_DNS] = profile.customDns.entries.joinToString("\n") { "${it.key}=${it.value}" }
+            values[Keys.CUSTOM_PROXY_DOMAINS] = profile.customProxyDomains.joinToString("\n")
+            values[Keys.APP_ROUTING_MODE] = profile.appRoutingMode.name
+            values[Keys.ROUTED_PACKAGES] = profile.routedPackages.joinToString("\n")
         }
     }
 
@@ -101,6 +105,9 @@ class ProfileRepository(private val context: Context) {
         updateBestNodesInterval = values[Keys.UPDATE_BEST_NODES] ?: 300,
         sessionRefreshInterval = values[Keys.SESSION_REFRESH] ?: 1800,
         customDns = values[Keys.CUSTOM_DNS].toDnsMap(),
+        customProxyDomains = values[Keys.CUSTOM_PROXY_DOMAINS].linesOrDefault(emptyList()),
+        appRoutingMode = values[Keys.APP_ROUTING_MODE].enumOrDefault(AppRoutingMode.ALL),
+        routedPackages = values[Keys.ROUTED_PACKAGES].linesOrDefault(emptyList()).toSet(),
         clientData = secrets.readClientData(),
     )
 
@@ -146,6 +153,9 @@ class ProfileRepository(private val context: Context) {
         val UPDATE_BEST_NODES = intPreferencesKey("update_best_nodes_interval")
         val SESSION_REFRESH = intPreferencesKey("session_refresh_interval")
         val CUSTOM_DNS = stringPreferencesKey("custom_dns")
+        val CUSTOM_PROXY_DOMAINS = stringPreferencesKey("custom_proxy_domains")
+        val APP_ROUTING_MODE = stringPreferencesKey("app_routing_mode")
+        val ROUTED_PACKAGES = stringPreferencesKey("routed_packages")
         val SESSION_REVISION = intPreferencesKey("session_revision")
     }
 }

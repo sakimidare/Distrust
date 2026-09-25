@@ -38,6 +38,9 @@ object ProfileValidator {
             if (domain.isBlank() || !domain.contains('.')) add(ValidationIssue("customDns", "无效的自定义 DNS 域名：$domain"))
             if (!isIpAddress(address)) add(ValidationIssue("customDns", "无效的自定义 DNS 地址：$address"))
         }
+        profile.customProxyDomains.filter { it.isBlank() || !it.contains('.') || it.contains(' ') }.forEach {
+            add(ValidationIssue("customProxyDomains", "无效的强制代理域名：$it"))
+        }
     }
 
     private fun isCidr(value: String): Boolean {
