@@ -91,7 +91,7 @@ fun DistrustTheme(content: @Composable () -> Unit) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background),
+                .background(MaterialTheme.colorScheme.surfaceContainer),
         ) {
             content()
         }
