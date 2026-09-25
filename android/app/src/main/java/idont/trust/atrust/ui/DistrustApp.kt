@@ -13,6 +13,8 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -99,7 +101,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -110,6 +114,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.IntSize
 import androidx.core.graphics.drawable.toBitmap
 import idont.trust.atrust.logging.LogEntry
 import idont.trust.atrust.logging.LogLevel
@@ -1207,11 +1212,22 @@ private fun AuthChallengeDialog(challengeJson: String, onSubmit: (String) -> Uni
     val payload = challenge?.optJSONObject("payload")
     var value by remember(challengeJson) { mutableStateOf("") }
     var skipSecondary by remember(challengeJson) { mutableStateOf(false) }
+    var clickPoints by remember(challengeJson) { mutableStateOf<List<Pair<Int, Int>>>(emptyList()) }
+    var imageBoxSize by remember { mutableStateOf(IntSize.Zero) }
+    val captchaImage = remember(challengeJson) {
+        payload?.optString("imageBase64")?.takeIf(String::isNotBlank)?.let { encoded ->
+            runCatching {
+                Base64.decode(encoded, Base64.DEFAULT).let { BitmapFactory.decodeByteArray(it, 0, it.size).asImageBitmap() }
+            }.getOrNull()
+        }
+    }
+    val markerColor = MaterialTheme.colorScheme.primary
+    val markerCenterColor = MaterialTheme.colorScheme.onPrimary
     val title = when (payload?.optString("kind")) {
         "sms" -> "短信验证码"
         "totp" -> "TOTP 验证码"
         "radius" -> "RADIUS 动态口令"
-        else -> if (type == "textCaptcha") "图形验证码" else "继续认证"
+        else -> when (type) { "textCaptcha" -> "图形验证码"; "clickCaptcha" -> "点选验证码"; else -> "继续认证" }
     }
     AlertDialog(
         onDismissRequest = onCancel,
@@ -1221,12 +1237,42 @@ private fun AuthChallengeDialog(challengeJson: String, onSubmit: (String) -> Uni
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 payload?.optString("message")?.takeIf(String::isNotBlank)?.let { Text(it) }
-                payload?.optString("imageBase64")?.takeIf(String::isNotBlank)?.let { encoded ->
-                    runCatching { Base64.decode(encoded, Base64.DEFAULT).let { BitmapFactory.decodeByteArray(it, 0, it.size).asImageBitmap() } }.getOrNull()?.let {
-                        Image(it, "验证码", Modifier.fillMaxWidth().height(160.dp).clip(RoundedCornerShape(20.dp)), contentScale = ContentScale.Fit)
+                captchaImage?.let { image ->
+                    Box(
+                        Modifier.fillMaxWidth().height(220.dp).clip(RoundedCornerShape(20.dp))
+                            .onSizeChanged { imageBoxSize = it }
+                            .pointerInput(type, image, imageBoxSize) {
+                                if (type == "clickCaptcha") detectTapGestures { tap ->
+                                    val scale = minOf(imageBoxSize.width / image.width.toFloat(), imageBoxSize.height / image.height.toFloat())
+                                    val shownWidth = image.width * scale
+                                    val shownHeight = image.height * scale
+                                    val left = (imageBoxSize.width - shownWidth) / 2f
+                                    val top = (imageBoxSize.height - shownHeight) / 2f
+                                    if (tap.x in left..(left + shownWidth) && tap.y in top..(top + shownHeight)) {
+                                        clickPoints = clickPoints + (((tap.x - left) / scale).toInt().coerceIn(0, image.width - 1) to ((tap.y - top) / scale).toInt().coerceIn(0, image.height - 1))
+                                    }
+                                }
+                            },
+                    ) {
+                        Image(image, "验证码", Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
+                        Canvas(Modifier.fillMaxSize()) {
+                            val scale = minOf(size.width / image.width, size.height / image.height)
+                            val left = (size.width - image.width * scale) / 2f
+                            val top = (size.height - image.height * scale) / 2f
+                            clickPoints.forEach { point ->
+                                val center = androidx.compose.ui.geometry.Offset(left + point.first * scale, top + point.second * scale)
+                                drawCircle(markerColor, radius = 12.dp.toPx(), center = center)
+                                drawCircle(markerCenterColor, radius = 5.dp.toPx(), center = center)
+                            }
+                        }
                     }
                 }
-                SectionTextField(value, { value = it }, "认证响应")
+                if (type == "clickCaptcha") {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("已选择 ${clickPoints.size} 个位置", modifier = Modifier.weight(1f))
+                        TextButton(onClick = { clickPoints = emptyList() }) { Text("重新选择") }
+                    }
+                } else SectionTextField(value, { value = it }, "认证响应")
                 if (payload?.optBoolean("canSkipSecondaryAuth") == true) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(skipSecondary, { skipSecondary = it })
@@ -1236,8 +1282,13 @@ private fun AuthChallengeDialog(challengeJson: String, onSubmit: (String) -> Uni
             }
         },
         confirmButton = {
-            TextButton(enabled = value.isNotBlank(), onClick = {
-                onSubmit(JSONObject().put("Code", value).put("SkipSecondaryAuth", skipSecondary).toString())
+            TextButton(enabled = if (type == "clickCaptcha") clickPoints.isNotEmpty() && captchaImage != null else value.isNotBlank(), onClick = {
+                if (type == "clickCaptcha" && captchaImage != null) {
+                    val points = org.json.JSONArray().apply {
+                        clickPoints.forEach { (x, y) -> put(JSONObject().put("x", x).put("y", y)) }
+                    }
+                    onSubmit(JSONObject().put("Points", points).put("Width", captchaImage.width).put("Height", captchaImage.height).toString())
+                } else onSubmit(JSONObject().put("Code", value).put("SkipSecondaryAuth", skipSecondary).toString())
             }) { Text("提交") }
         },
         dismissButton = { TextButton(onClick = onCancel) { Text("取消") } },
