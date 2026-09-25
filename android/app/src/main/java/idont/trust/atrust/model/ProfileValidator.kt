@@ -18,6 +18,9 @@ object ProfileValidator {
         if (profile.socksPort !in 1..65535) add(ValidationIssue("socksPort", "SOCKS5 端口无效"))
         if (profile.httpPort !in 1..65535) add(ValidationIssue("httpPort", "HTTP 端口无效"))
         if (profile.socksPort == profile.httpPort) add(ValidationIssue("httpPort", "SOCKS5 和 HTTP 端口不能相同"))
+        if (profile.socksUsername.isBlank() != profile.socksPassword.isBlank()) {
+            add(ValidationIssue("socksAuth", "SOCKS5 用户名和密码必须同时填写"))
+        }
         profile.routes.filterNot(::isCidr).forEach {
             add(ValidationIssue("routes", "无效的 CIDR：$it"))
         }

@@ -18,9 +18,11 @@ class SecretStore(context: Context) {
     fun readPassword(): String = read(PASSWORD)
     fun readClientData(): String = read(CLIENT_DATA)
     fun readTotpSecret(): String = read(TOTP_SECRET)
+    fun readSocksPassword(): String = read(SOCKS_PASSWORD)
     fun writePassword(password: String) = write(PASSWORD, password)
     fun writeClientData(clientData: String) = write(CLIENT_DATA, clientData)
     fun writeTotpSecret(secret: String) = write(TOTP_SECRET, secret)
+    fun writeSocksPassword(password: String) = write(SOCKS_PASSWORD, password)
 
     private fun read(name: String): String {
         val encoded = preferences.getString(name, null) ?: return ""
@@ -77,5 +79,6 @@ class SecretStore(context: Context) {
         const val PASSWORD = "default_profile_password"
         const val CLIENT_DATA = "default_profile_client_data"
         const val TOTP_SECRET = "default_profile_totp_secret"
+        const val SOCKS_PASSWORD = "default_profile_socks_password"
     }
 }

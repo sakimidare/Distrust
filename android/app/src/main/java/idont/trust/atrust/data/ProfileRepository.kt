@@ -26,6 +26,7 @@ class ProfileRepository(private val context: Context) {
         secrets.writePassword(profile.password)
         secrets.writeClientData(profile.clientData)
         secrets.writeTotpSecret(profile.totpSecret)
+        secrets.writeSocksPassword(profile.socksPassword)
         context.profileDataStore.edit { values ->
             values[Keys.NAME] = profile.name
             values[Keys.MODE] = profile.mode.name
@@ -38,12 +39,15 @@ class ProfileRepository(private val context: Context) {
             values[Keys.LOGIN_URL] = profile.loginUrl.trim()
             values[Keys.PHONE] = profile.phone.trim()
             values[Keys.SOCKS_PORT] = profile.socksPort
+            values[Keys.SOCKS_USERNAME] = profile.socksUsername.trim()
             values[Keys.HTTP_PORT] = profile.httpPort
             values[Keys.ROUTES] = profile.routes.joinToString("\n")
             values[Keys.DNS] = profile.dnsServers.joinToString("\n")
             values[Keys.DNS_TTL] = profile.dnsTtl
             values[Keys.PROXY_ALL] = profile.proxyAll
             values[Keys.DISABLE_SERVER_CONFIG] = profile.disableServerConfig
+            values[Keys.DISABLE_REMOTE_DNS] = profile.disableRemoteDns
+            values[Keys.SKIP_DOMAIN_RESOURCE] = profile.skipDomainResource
             values[Keys.UPDATE_BEST_NODES] = profile.updateBestNodesInterval
             values[Keys.SESSION_REFRESH] = profile.sessionRefreshInterval
             values[Keys.CUSTOM_DNS] = profile.customDns.entries.joinToString("\n") { "${it.key}=${it.value}" }
@@ -68,7 +72,7 @@ class ProfileRepository(private val context: Context) {
         name = values[Keys.NAME] ?: "默认配置",
         mode = values[Keys.MODE].enumOrDefault(ConnectionMode.LOCAL_PROXY),
         protocol = values[Keys.PROTOCOL].enumOrDefault(VpnProtocol.ATRUST),
-        server = values[Keys.SERVER] ?: "trust.hitsz.edu.cn",
+        server = values[Keys.SERVER] ?: "vpn.seu.edu.cn",
         port = values[Keys.PORT] ?: 443,
         username = values[Keys.USERNAME] ?: "",
         password = secrets.readPassword(),
@@ -78,12 +82,16 @@ class ProfileRepository(private val context: Context) {
         loginUrl = values[Keys.LOGIN_URL] ?: "",
         phone = values[Keys.PHONE] ?: "",
         socksPort = values[Keys.SOCKS_PORT] ?: 11080,
+        socksUsername = values[Keys.SOCKS_USERNAME] ?: "",
+        socksPassword = secrets.readSocksPassword(),
         httpPort = values[Keys.HTTP_PORT] ?: 11081,
         routes = values[Keys.ROUTES].linesOrDefault(listOf("10.0.0.0/8")),
         dnsServers = values[Keys.DNS].linesOrDefault(emptyList()),
         dnsTtl = values[Keys.DNS_TTL] ?: 3600,
         proxyAll = values[Keys.PROXY_ALL] ?: false,
         disableServerConfig = values[Keys.DISABLE_SERVER_CONFIG] ?: false,
+        disableRemoteDns = values[Keys.DISABLE_REMOTE_DNS] ?: false,
+        skipDomainResource = values[Keys.SKIP_DOMAIN_RESOURCE] ?: false,
         updateBestNodesInterval = values[Keys.UPDATE_BEST_NODES] ?: 300,
         sessionRefreshInterval = values[Keys.SESSION_REFRESH] ?: 1800,
         customDns = values[Keys.CUSTOM_DNS].toDnsMap(),
@@ -117,12 +125,15 @@ class ProfileRepository(private val context: Context) {
         val LOGIN_URL = stringPreferencesKey("login_url")
         val PHONE = stringPreferencesKey("phone")
         val SOCKS_PORT = intPreferencesKey("socks_port")
+        val SOCKS_USERNAME = stringPreferencesKey("socks_username")
         val HTTP_PORT = intPreferencesKey("http_port")
         val ROUTES = stringPreferencesKey("routes")
         val DNS = stringPreferencesKey("dns")
         val DNS_TTL = intPreferencesKey("dns_ttl")
         val PROXY_ALL = booleanPreferencesKey("proxy_all")
         val DISABLE_SERVER_CONFIG = booleanPreferencesKey("disable_server_config")
+        val DISABLE_REMOTE_DNS = booleanPreferencesKey("disable_remote_dns")
+        val SKIP_DOMAIN_RESOURCE = booleanPreferencesKey("skip_domain_resource")
         val UPDATE_BEST_NODES = intPreferencesKey("update_best_nodes_interval")
         val SESSION_REFRESH = intPreferencesKey("session_refresh_interval")
         val CUSTOM_DNS = stringPreferencesKey("custom_dns")

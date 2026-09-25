@@ -716,7 +716,8 @@ private fun ConnectionSettingsPage(stored: ConnectionProfile, onSave: (Connectio
 @Composable
 private fun ProxySettingsPage(stored: ConnectionProfile, onSave: (ConnectionProfile) -> Unit, onBack: () -> Unit) {
     var draft by remember(stored) { mutableStateOf(stored) }
-    EditorScaffold("本地代理", true, onBack, { onSave(draft); onBack() }) {
+    val credentialsValid = draft.socksUsername.isBlank() == draft.socksPassword.isBlank()
+    EditorScaffold("本地代理", credentialsValid, onBack, { onSave(draft); onBack() }) {
         item {
             SegmentedColumn("运行方式") {
                 item {
@@ -736,6 +737,23 @@ private fun ProxySettingsPage(stored: ConnectionProfile, onSave: (ConnectionProf
                 SectionTextField(draft.httpPort.toString(), { it.toIntOrNull()?.let { v -> draft = draft.copy(httpPort = v.coerceIn(1, 65535)) } }, "HTTP 端口", keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
             }
         }
+        if (!credentialsValid) {
+            item {
+                Text(
+                    "SOCKS5 用户名和密码必须同时填写",
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+        }
+        item {
+            EditorFields {
+                Text("SOCKS5 鉴权", style = MaterialTheme.typography.titleSmall)
+                Text("用户名和密码同时填写时启用；SOCKS5 本身不会加密流量或凭据。", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                SectionTextField(draft.socksUsername, { draft = draft.copy(socksUsername = it) }, "用户名（可选）")
+                SectionTextField(draft.socksPassword, { draft = draft.copy(socksPassword = it) }, "密码（可选）", visualTransformation = PasswordVisualTransformation())
+            }
+        }
     }
 }
 
@@ -747,6 +765,8 @@ private fun PolicySettingsPage(stored: ConnectionProfile, onSave: (ConnectionPro
             SegmentedColumn("策略") {
                 item { SettingsSwitchWidget("代理全部流量", "忽略服务端分流边界", Icons.TwoTone.Shield, draft.proxyAll) { draft = draft.copy(proxyAll = it) } }
                 item { SettingsSwitchWidget("忽略服务器配置", "仅使用本地配置", Icons.TwoTone.Settings, draft.disableServerConfig) { draft = draft.copy(disableServerConfig = it) } }
+                item { SettingsSwitchWidget("使用本地 DNS", "不通过 VPN 查询服务端策略 DNS", Icons.TwoTone.Settings, draft.disableRemoteDns) { draft = draft.copy(disableRemoteDns = it) } }
+                item { SettingsSwitchWidget("跳过域名资源", "不根据服务端 Domain Resource 决定 VPN 路由", Icons.TwoTone.Shield, draft.skipDomainResource) { draft = draft.copy(skipDomainResource = it) } }
             }
         }
         item {

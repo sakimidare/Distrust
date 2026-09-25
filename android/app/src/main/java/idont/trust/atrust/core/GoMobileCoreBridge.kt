@@ -252,6 +252,8 @@ class GoMobileCoreBridge : CoreBridge {
             .put("phone", profile.phone)
             .put("clientData", profile.clientData)
             .put("socksBind", "127.0.0.1:${profile.socksPort}")
+            .put("socksUser", profile.socksUsername)
+            .put("socksPassword", profile.socksPassword)
             .put("httpBind", "127.0.0.1:${profile.httpPort}")
             .put(
                 "remoteDns",
@@ -263,6 +265,8 @@ class GoMobileCoreBridge : CoreBridge {
             .put("dnsTtl", profile.dnsTtl)
             .put("proxyAll", profile.proxyAll)
             .put("disableServerConfig", profile.disableServerConfig)
+            .put("disableRemoteDns", profile.disableRemoteDns)
+            .put("skipDomainResource", profile.skipDomainResource)
             .put("updateBestNodesInterval", profile.updateBestNodesInterval)
             .put("sessionRefreshInterval", profile.sessionRefreshInterval)
             .put("customDns", JSONObject(profile.customDns))
