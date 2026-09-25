@@ -114,7 +114,8 @@ private fun MonetCompatInitializer(wallpaperSeed: Int) {
         val listener = object : MonetColorsChangedListener {
             override fun onMonetColorsChanged(monet: MonetCompat, monetColors: ColorScheme, isInitialChange: Boolean) {
                 scope.launch {
-                    ThemeConfig.monetSeedColor = monet.getSelectedWallpaperColor() ?: wallpaperSeed
+                    ThemeConfig.monetSeedColor = runCatching { monet.getSelectedWallpaperColor() }
+                        .getOrNull() ?: wallpaperSeed
                 }
             }
         }
@@ -124,11 +125,13 @@ private fun MonetCompatInitializer(wallpaperSeed: Int) {
 }
 
 private fun resolveWallpaperSeed(context: android.content.Context, fallback: Int): Int {
-    val wallpaper = WallpaperManager.getInstance(context)
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
-        wallpaper.getWallpaperColors(WallpaperManager.FLAG_SYSTEM)?.primaryColor?.toArgb()?.let { return it }
-    }
-    return fallback
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O_MR1) return fallback
+    return runCatching {
+        WallpaperManager.getInstance(context)
+            .getWallpaperColors(WallpaperManager.FLAG_SYSTEM)
+            ?.primaryColor
+            ?.toArgb()
+    }.getOrNull() ?: fallback
 }
 
 @Preview(name = "Monet palette", showBackground = true)
