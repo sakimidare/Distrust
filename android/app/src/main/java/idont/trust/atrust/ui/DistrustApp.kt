@@ -614,7 +614,7 @@ private fun ProfilePage(
             }
         }
         item {
-            SegmentedColumn("配置文件") {
+            SegmentedColumn("导入与导出") {
                 item { SettingsBaseWidget("导出当前配置", "仅导出连接与策略参数", Icons.TwoTone.Info, onClick = { exportLauncher.launch("distrust-${stored.name}.json") }) }
                 item { SettingsBaseWidget("导入配置", "从 Distrust JSON 配置覆盖当前档案", Icons.TwoTone.Settings, onClick = { importLauncher.launch(arrayOf("application/json", "text/plain")) }) }
             }

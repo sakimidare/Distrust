@@ -143,8 +143,15 @@ fun SettingsBaseWidget(
     val shape = if (pressed) RoundedCornerShape(pressedRadius) else baseShape
     val container = containerColor ?: when {
         selected -> MaterialTheme.colorScheme.primaryContainer
-        isError -> MaterialTheme.colorScheme.errorContainer
         else -> MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = ThemeConfig.cardAlpha)
+    }
+    val contentColor = when {
+        containerColor != null -> contentColorFor(containerColor).let {
+            if (it == Color.Unspecified) MaterialTheme.colorScheme.onSurface else it
+        }
+        isError -> MaterialTheme.colorScheme.error
+        selected -> MaterialTheme.colorScheme.onPrimaryContainer
+        else -> MaterialTheme.colorScheme.onSurface
     }
     val itemContent: @Composable () -> Unit = {
         Row(
@@ -160,7 +167,11 @@ fun SettingsBaseWidget(
                     icon,
                     null,
                     Modifier.size(iconSize),
-                    tint = iconColor ?: if (onClick != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    tint = iconColor ?: when {
+                        isError -> contentColor
+                        onClick != null -> MaterialTheme.colorScheme.primary
+                        else -> MaterialTheme.colorScheme.onSurfaceVariant
+                    },
                 )
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -172,7 +183,7 @@ fun SettingsBaseWidget(
                     Text(
                         it,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = if (isError) contentColor else MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
@@ -180,13 +191,6 @@ fun SettingsBaseWidget(
         }
     }
     val surfaceModifier = Modifier.fillMaxWidth().heightIn(min = if (description == null) 64.dp else 76.dp)
-    val contentColor = when {
-        containerColor != null -> contentColorFor(containerColor).let {
-            if (it == Color.Unspecified) MaterialTheme.colorScheme.onSurface else it
-        }
-        selected -> MaterialTheme.colorScheme.onPrimaryContainer
-        else -> MaterialTheme.colorScheme.onSurface
-    }
     if (onClick != null) {
         Surface(
             modifier = surfaceModifier,
