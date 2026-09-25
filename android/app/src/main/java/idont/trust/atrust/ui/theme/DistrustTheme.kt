@@ -1,8 +1,6 @@
 package idont.trust.atrust.ui.theme
 
 import android.app.WallpaperManager
-import android.graphics.Bitmap
-import android.graphics.Canvas
 import android.os.Build
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
@@ -37,6 +35,7 @@ import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.tooling.preview.Preview
+import idont.trust.atrust.R
 import com.kieronquinn.monetcompat.core.MonetCompat
 import com.kieronquinn.monetcompat.interfaces.MonetColorsChangedListener
 import com.materialkolor.PaletteStyle
@@ -61,8 +60,9 @@ fun DistrustTheme(content: @Composable () -> Unit) {
     val context = LocalContext.current
     val dark = ThemeConfig.forceDarkMode ?: isSystemInDarkTheme()
     val inspectionMode = LocalInspectionMode.current
-    val wallpaperSeed = remember(context, inspectionMode) {
-        if (inspectionMode) context.getColor(android.R.color.system_accent1_500) else resolveWallpaperSeed(context)
+    val fallbackSeed = colorResource(R.color.launcher_foreground).toArgb()
+    val wallpaperSeed = remember(context, inspectionMode, fallbackSeed) {
+        if (inspectionMode) fallbackSeed else resolveWallpaperSeed(context, fallbackSeed)
     }
     if (!inspectionMode) MonetCompatInitializer(wallpaperSeed)
     val seed = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -123,17 +123,12 @@ private fun MonetCompatInitializer(wallpaperSeed: Int) {
     }
 }
 
-private fun resolveWallpaperSeed(context: android.content.Context): Int {
+private fun resolveWallpaperSeed(context: android.content.Context, fallback: Int): Int {
     val wallpaper = WallpaperManager.getInstance(context)
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
         wallpaper.getWallpaperColors(WallpaperManager.FLAG_SYSTEM)?.primaryColor?.toArgb()?.let { return it }
     }
-    val drawable = requireNotNull(wallpaper.drawable) { "System wallpaper is unavailable for Monet extraction" }
-    val bitmap = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
-    val canvas = Canvas(bitmap)
-    drawable.setBounds(0, 0, 1, 1)
-    drawable.draw(canvas)
-    return bitmap.getPixel(0, 0)
+    return fallback
 }
 
 @Preview(name = "Monet palette", showBackground = true)

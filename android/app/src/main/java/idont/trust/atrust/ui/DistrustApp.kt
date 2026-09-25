@@ -117,6 +117,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.IntSize
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.core.graphics.drawable.toBitmap
+import androidx.core.content.pm.PackageInfoCompat
 import idont.trust.atrust.logging.LogEntry
 import idont.trust.atrust.logging.LogLevel
 import idont.trust.atrust.logging.Logger
@@ -1197,7 +1198,7 @@ private fun AboutPage(bottomPadding: Dp) {
         item {
             SegmentedColumn("应用") {
                 item { SettingsBaseWidget("原生 Android 客户端", "aTrust / EasyConnect · VPN / SOCKS5 / HTTP", Icons.TwoTone.Info) }
-                item { SettingsBaseWidget("版本", "${packageInfo.versionName} (${packageInfo.longVersionCode})", Icons.TwoTone.Info) }
+                item { SettingsBaseWidget("版本", "${packageInfo.versionName} (${PackageInfoCompat.getLongVersionCode(packageInfo)})", Icons.TwoTone.Info) }
                 item { SettingsBaseWidget("包名", "idont.trust.atrust", Icons.TwoTone.Key) }
                 item { SettingsBaseWidget("许可证", "GPL-3.0 / Core AGPL-3.0", Icons.TwoTone.Info) }
             }
