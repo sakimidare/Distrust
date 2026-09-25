@@ -289,6 +289,7 @@ fun SectionTextField(
     modifier: Modifier = Modifier,
     singleLine: Boolean = true,
     supportingText: String? = null,
+    enabled: Boolean = true,
     visualTransformation: androidx.compose.ui.text.input.VisualTransformation = androidx.compose.ui.text.input.VisualTransformation.None,
     keyboardOptions: androidx.compose.foundation.text.KeyboardOptions = androidx.compose.foundation.text.KeyboardOptions.Default,
 ) {
@@ -297,6 +298,7 @@ fun SectionTextField(
         onValueChange = onValueChange,
         label = { Text(label) },
         supportingText = supportingText?.let { { Text(it) } },
+        enabled = enabled,
         singleLine = singleLine,
         visualTransformation = visualTransformation,
         keyboardOptions = keyboardOptions,

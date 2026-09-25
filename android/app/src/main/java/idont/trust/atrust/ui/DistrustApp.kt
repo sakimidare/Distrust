@@ -506,10 +506,12 @@ private fun HomePage(
                 item { SettingsJumpPageWidget("协议与服务器", "${profile.protocol.label} · ${profile.server}:${profile.port}", Icons.TwoTone.Key) { onNavigate(AppRoute.ConnectionSettings) } }
                 item(visible = state is ConnectionState.Connected) { SettingsBaseWidget("会话地址", (state as? ConnectionState.Connected)?.endpoint.orEmpty(), Icons.TwoTone.Shield) }
             }
-            SegmentedColumn("本地代理", contentPadding = PaddingValues(horizontal = 0.dp, vertical = 4.dp)) {
-                item { SettingsBaseWidget("SOCKS5", "127.0.0.1:${profile.socksPort}", Icons.TwoTone.Lan, onClick = { editingPort = ProxyPort.SOCKS5 }, trailingContent = { Icon(Icons.TwoTone.Edit, "修改") }) }
-                item { SettingsBaseWidget("HTTP", "127.0.0.1:${profile.httpPort}", Icons.TwoTone.Lan, onClick = { editingPort = ProxyPort.HTTP }, trailingContent = { Icon(Icons.TwoTone.Edit, "修改") }) }
-                item { ProxyCopyWidget(profile) }
+            if (profile.mode == ConnectionMode.LOCAL_PROXY) {
+                SegmentedColumn("本地代理", contentPadding = PaddingValues(horizontal = 0.dp, vertical = 4.dp)) {
+                    item { SettingsBaseWidget("SOCKS5", "127.0.0.1:${profile.socksPort}", Icons.TwoTone.Lan, onClick = { editingPort = ProxyPort.SOCKS5 }, trailingContent = { Icon(Icons.TwoTone.Edit, "修改") }) }
+                    item { SettingsBaseWidget("HTTP", "127.0.0.1:${profile.httpPort}", Icons.TwoTone.Lan, onClick = { editingPort = ProxyPort.HTTP }, trailingContent = { Icon(Icons.TwoTone.Edit, "修改") }) }
+                    item { ProxyCopyWidget(profile) }
+                }
             }
             Spacer(Modifier.height(bottomPadding + 16.dp))
         }
@@ -716,7 +718,8 @@ private fun ConnectionSettingsPage(stored: ConnectionProfile, onSave: (Connectio
 @Composable
 private fun ProxySettingsPage(stored: ConnectionProfile, onSave: (ConnectionProfile) -> Unit, onBack: () -> Unit) {
     var draft by remember(stored) { mutableStateOf(stored) }
-    val credentialsValid = draft.socksUsername.isBlank() == draft.socksPassword.isBlank()
+    val localProxyEnabled = draft.mode == ConnectionMode.LOCAL_PROXY
+    val credentialsValid = !localProxyEnabled || draft.socksUsername.isBlank() == draft.socksPassword.isBlank()
     EditorScaffold("本地代理", credentialsValid, onBack, { onSave(draft); onBack() }) {
         item {
             SegmentedColumn("运行方式") {
@@ -733,8 +736,8 @@ private fun ProxySettingsPage(stored: ConnectionProfile, onSave: (ConnectionProf
         }
         item {
             EditorFields {
-                SectionTextField(draft.socksPort.toString(), { it.toIntOrNull()?.let { v -> draft = draft.copy(socksPort = v.coerceIn(1, 65535)) } }, "SOCKS5 端口", keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                SectionTextField(draft.httpPort.toString(), { it.toIntOrNull()?.let { v -> draft = draft.copy(httpPort = v.coerceIn(1, 65535)) } }, "HTTP 端口", keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                SectionTextField(draft.socksPort.toString(), { it.toIntOrNull()?.let { v -> draft = draft.copy(socksPort = v.coerceIn(1, 65535)) } }, "SOCKS5 端口", enabled = localProxyEnabled, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                SectionTextField(draft.httpPort.toString(), { it.toIntOrNull()?.let { v -> draft = draft.copy(httpPort = v.coerceIn(1, 65535)) } }, "HTTP 端口", enabled = localProxyEnabled, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
             }
         }
         if (!credentialsValid) {
@@ -748,10 +751,10 @@ private fun ProxySettingsPage(stored: ConnectionProfile, onSave: (ConnectionProf
         }
         item {
             EditorFields {
-                Text("SOCKS5 鉴权", style = MaterialTheme.typography.titleSmall)
-                Text("用户名和密码同时填写时启用；SOCKS5 本身不会加密流量或凭据。", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                SectionTextField(draft.socksUsername, { draft = draft.copy(socksUsername = it) }, "用户名（可选）")
-                SectionTextField(draft.socksPassword, { draft = draft.copy(socksPassword = it) }, "密码（可选）", visualTransformation = PasswordVisualTransformation())
+                Text("SOCKS5 鉴权", style = MaterialTheme.typography.titleSmall, color = if (localProxyEnabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f))
+                Text(if (localProxyEnabled) "用户名和密码同时填写时启用；SOCKS5 本身不会加密流量或凭据。" else "系统 VPN 模式不启动本地代理监听。", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                SectionTextField(draft.socksUsername, { draft = draft.copy(socksUsername = it) }, "用户名（可选）", enabled = localProxyEnabled)
+                SectionTextField(draft.socksPassword, { draft = draft.copy(socksPassword = it) }, "密码（可选）", enabled = localProxyEnabled, visualTransformation = PasswordVisualTransformation())
             }
         }
     }
