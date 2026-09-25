@@ -23,6 +23,7 @@ enum class AppRoutingMode {
 
 @Serializable
 data class ConnectionProfile(
+    val id: String = "default",
     val name: String = "默认配置",
     val mode: ConnectionMode = ConnectionMode.LOCAL_PROXY,
     val protocol: VpnProtocol = VpnProtocol.ATRUST,

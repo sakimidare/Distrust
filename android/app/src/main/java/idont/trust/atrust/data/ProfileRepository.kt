@@ -30,6 +30,7 @@ class ProfileRepository(private val context: Context) {
         secrets.writeSocksPassword(profile.socksPassword)
         context.profileDataStore.edit { values ->
             values[Keys.NAME] = profile.name
+            values[Keys.ID] = profile.id
             values[Keys.MODE] = profile.mode.name
             values[Keys.PROTOCOL] = profile.protocol.name
             values[Keys.SERVER] = profile.server.trim()
@@ -77,6 +78,7 @@ class ProfileRepository(private val context: Context) {
     }
 
     private fun toProfile(values: Preferences): ConnectionProfile = ConnectionProfile(
+        id = values[Keys.ID] ?: "default",
         name = values[Keys.NAME] ?: "默认配置",
         mode = values[Keys.MODE].enumOrDefault(ConnectionMode.LOCAL_PROXY),
         protocol = values[Keys.PROTOCOL].enumOrDefault(VpnProtocol.ATRUST),
@@ -130,6 +132,7 @@ class ProfileRepository(private val context: Context) {
 
     private object Keys {
         val NAME = stringPreferencesKey("name")
+        val ID = stringPreferencesKey("id")
         val MODE = stringPreferencesKey("mode")
         val PROTOCOL = stringPreferencesKey("protocol")
         val SERVER = stringPreferencesKey("server")

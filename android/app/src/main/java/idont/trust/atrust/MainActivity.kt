@@ -55,14 +55,28 @@ class MainActivity : ComponentActivity() {
             val logs by viewModel.logs.collectAsStateWithLifecycle()
             val authChallenge by viewModel.authChallenge.collectAsStateWithLifecycle()
             val authDiscovery by viewModel.authDiscovery.collectAsStateWithLifecycle()
+            val profiles by viewModel.profiles.collectAsStateWithLifecycle()
             DistrustTheme {
                 DistrustApp(
                     profile = profile,
+                    profiles = profiles,
                     connectionState = state,
                     logs = logs,
                     authChallenge = authChallenge,
                     authDiscovery = authDiscovery,
                     onSaveProfile = viewModel::save,
+                    onSwitchProfile = {
+                        ConnectionServiceController.stopAll(this)
+                        viewModel.switchProfile(it)
+                    },
+                    onDuplicateProfile = {
+                        ConnectionServiceController.stopAll(this)
+                        viewModel.duplicateProfile()
+                    },
+                    onDeleteProfile = {
+                        ConnectionServiceController.stopAll(this)
+                        viewModel.deleteProfile(it)
+                    },
                     onClearLogs = viewModel::clearLogs,
                     onExportLogs = ::exportLogs,
                     onClearSession = {

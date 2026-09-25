@@ -160,11 +160,15 @@ private val ConnectedContainerDark = Color(0xFF193C20)
 @Composable
 fun DistrustApp(
     profile: ConnectionProfile,
+    profiles: List<ConnectionProfile>,
     connectionState: ConnectionState,
     logs: List<LogEntry>,
     authChallenge: String?,
     authDiscovery: AuthDiscoveryState,
     onSaveProfile: (ConnectionProfile) -> Unit,
+    onSwitchProfile: (String) -> Unit,
+    onDuplicateProfile: () -> Unit,
+    onDeleteProfile: (String) -> Unit,
     onClearLogs: () -> Unit,
     onExportLogs: (List<LogEntry>) -> Unit,
     onClearSession: () -> Unit,
@@ -214,8 +218,9 @@ fun DistrustApp(
     ) {
         entry<AppRoute.Main>(swipeDismiss = NavSwipeDirection.None) {
             MainShell(
-                profile, connectionState, logs, snackbar,
+                profile, profiles, connectionState, logs, snackbar,
                 onConnect, onDisconnect, onClearLogs, onExportLogs, onSaveProfile,
+                onSwitchProfile, onDuplicateProfile, onDeleteProfile,
                 onNavigate = push,
                 onOpenWizard = {
                     onResetAuthDiscovery()
@@ -285,6 +290,7 @@ fun DistrustApp(
 @Composable
 private fun MainShell(
     profile: ConnectionProfile,
+    profiles: List<ConnectionProfile>,
     state: ConnectionState,
     logs: List<LogEntry>,
     snackbar: SnackbarHostState,
@@ -293,6 +299,9 @@ private fun MainShell(
     onClearLogs: () -> Unit,
     onExportLogs: (List<LogEntry>) -> Unit,
     onSaveProfile: (ConnectionProfile) -> Unit,
+    onSwitchProfile: (String) -> Unit,
+    onDuplicateProfile: () -> Unit,
+    onDeleteProfile: (String) -> Unit,
     onNavigate: (AppRoute) -> Unit,
     onOpenWizard: () -> Unit,
 ) {
@@ -315,7 +324,7 @@ private fun MainShell(
             ) { page ->
                 when (destinations[page]) {
                     Destination.HOME -> HomePage(profile, state, onConnect, onDisconnect, onSaveProfile, onNavigate, onOpenWizard, bottomPadding)
-                    Destination.PROFILE -> ProfilePage(profile, onSaveProfile, onNavigate, onOpenWizard, bottomPadding)
+                    Destination.PROFILE -> ProfilePage(profile, profiles, onSaveProfile, onSwitchProfile, onDuplicateProfile, onDeleteProfile, onNavigate, onOpenWizard, bottomPadding)
                     Destination.LOGS -> LogPage(logs, onClearLogs, onExportLogs, bottomPadding)
                     Destination.ABOUT -> AboutPage(bottomPadding)
                 }
@@ -426,7 +435,7 @@ private fun HomePage(
     val statusError: Boolean
     when (state) {
         ConnectionState.Disconnected -> {
-            statusTitle = "等待连接"
+            statusTitle = "未连接"
             statusDetail = "点击连接以启用 ${profile.mode.label}"
             statusIcon = Icons.TwoTone.LinkOff
             statusContainer = null
@@ -440,7 +449,7 @@ private fun HomePage(
             statusError = false
         }
         is ConnectionState.Connected -> {
-            statusTitle = "连接工作正常"
+            statusTitle = "已连接"
             statusDetail = state.endpoint
             statusIcon = Icons.TwoTone.TaskAlt
             statusContainer = if (darkTheme) ConnectedContainerDark else ConnectedContainerLight
@@ -561,12 +570,18 @@ private fun ProxyCopyWidget(profile: ConnectionProfile) {
 @Composable
 private fun ProfilePage(
     stored: ConnectionProfile,
+    profiles: List<ConnectionProfile>,
     onSave: (ConnectionProfile) -> Unit,
+    onSwitch: (String) -> Unit,
+    onDuplicate: () -> Unit,
+    onDelete: (String) -> Unit,
     onNavigate: (AppRoute) -> Unit,
     onOpenWizard: () -> Unit,
     bottomPadding: Dp,
 ) {
     val context = LocalContext.current
+    var showProfiles by remember { mutableStateOf(false) }
+    var confirmDelete by remember { mutableStateOf(false) }
     val json = remember { Json { prettyPrint = true; ignoreUnknownKeys = true } }
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         uri ?: return@rememberLauncherForActivityResult
@@ -584,6 +599,13 @@ private fun ProfilePage(
         }.onFailure { Logger.e("Profile", "Failed to import profile", it) }
     }
     PageScaffold("设置", bottomPadding) {
+        item {
+            SegmentedColumn("配置档案") {
+                item { SettingsJumpPageWidget("当前档案", stored.name, Icons.TwoTone.Key) { showProfiles = true } }
+                item { SettingsBaseWidget("创建副本", "复制当前连接与凭据并切换", Icons.TwoTone.ContentCopy, onClick = onDuplicate) }
+                item { SettingsBaseWidget("删除当前档案", "切换到其余可用档案", Icons.Rounded.DeleteSweep, enabled = profiles.size > 1, isError = true, onClick = if (profiles.size > 1) ({ confirmDelete = true }) else null) }
+            }
+        }
         item {
             SegmentedColumn("配置文件") {
                 item { SettingsBaseWidget("导出当前配置", "仅导出连接与策略参数", Icons.TwoTone.Info, onClick = { exportLauncher.launch("distrust-${stored.name}.json") }) }
@@ -605,6 +627,34 @@ private fun ProfilePage(
                 item { SettingsJumpPageWidget("aTrust 会话", "节点优选和会话刷新间隔", Icons.TwoTone.Settings) { onNavigate(AppRoute.SessionSettings) } }
             }
         }
+    }
+    if (showProfiles) {
+        AlertDialog(
+            onDismissRequest = { showProfiles = false },
+            shape = RoundedCornerShape(32.dp),
+            title = { Text("切换配置档案") },
+            text = {
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    items(profiles, key = { it.id }) { saved ->
+                        SettingsBaseWidget(saved.name, "${saved.protocol.label} · ${saved.server}:${saved.port}", Icons.TwoTone.Key, selected = saved.id == stored.id, onClick = {
+                            showProfiles = false
+                            onSwitch(saved.id)
+                        })
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { showProfiles = false }) { Text("完成") } },
+        )
+    }
+    if (confirmDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            shape = RoundedCornerShape(32.dp),
+            title = { Text("删除 ${stored.name}？") },
+            text = { Text("档案目录将切换到其余可用配置。") },
+            confirmButton = { TextButton(onClick = { confirmDelete = false; onDelete(stored.id) }) { Text("删除") } },
+            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("取消") } },
+        )
     }
 }
 
@@ -1241,7 +1291,7 @@ private fun HomeErrorPreview() = DistrustTheme {
 @Preview(name = "Profile page", showSystemUi = true)
 @Composable
 private fun ProfilePagePreview() = DistrustTheme {
-    ProfilePage(previewProfile, {}, {}, {}, 0.dp)
+    ProfilePage(previewProfile, listOf(previewProfile), {}, {}, {}, {}, {}, {}, 0.dp)
 }
 
 @Preview(name = "Connection settings", showSystemUi = true)
@@ -1297,10 +1347,11 @@ private fun AboutPagePreview() = DistrustTheme {
 private fun MainShellPreview() = DistrustTheme {
     MainShell(
         previewProfile,
+        listOf(previewProfile),
         ConnectionState.Disconnected,
         previewLogs,
         remember { SnackbarHostState() },
-        {}, {}, {}, {}, {}, {}, {},
+        {}, {}, {}, {}, {}, {}, {}, {}, {}, {},
     )
 }
 
