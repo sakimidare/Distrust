@@ -132,6 +132,7 @@ import idont.trust.atrust.util.ProxyConfigFormatter
 import java.time.ZoneId
 import java.time.Instant
 import java.time.format.DateTimeFormatter
+import java.net.URI
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 import top.yukonga.miuix.kmp.nav.core.NavCornerClipMode
@@ -720,7 +721,8 @@ private fun ProxySettingsPage(stored: ConnectionProfile, onSave: (ConnectionProf
     var draft by remember(stored) { mutableStateOf(stored) }
     val localProxyEnabled = draft.mode == ConnectionMode.LOCAL_PROXY
     val credentialsValid = !localProxyEnabled || draft.socksUsername.isBlank() == draft.socksPassword.isBlank()
-    EditorScaffold("本地代理", credentialsValid, onBack, { onSave(draft); onBack() }) {
+    val directProxyValid = draft.dialDirectProxy.isBlank() || Regex("^(http|socks)://[^:/\\s]+:[0-9]{1,5}$").matches(draft.dialDirectProxy)
+    EditorScaffold("本地代理", credentialsValid && directProxyValid, onBack, { onSave(draft); onBack() }) {
         item {
             SegmentedColumn("运行方式") {
                 item {
@@ -738,6 +740,21 @@ private fun ProxySettingsPage(stored: ConnectionProfile, onSave: (ConnectionProf
             EditorFields {
                 SectionTextField(draft.socksPort.toString(), { it.toIntOrNull()?.let { v -> draft = draft.copy(socksPort = v.coerceIn(1, 65535)) } }, "SOCKS5 端口", enabled = localProxyEnabled, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
                 SectionTextField(draft.httpPort.toString(), { it.toIntOrNull()?.let { v -> draft = draft.copy(httpPort = v.coerceIn(1, 65535)) } }, "HTTP 端口", enabled = localProxyEnabled, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+            }
+        }
+        item {
+            EditorFields {
+                Text("直连上游代理", style = MaterialTheme.typography.titleSmall)
+                Text("仅用于未命中校园 VPN Resource 的 TCP 连接。留空表示直接连接。", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                SectionTextField(
+                    draft.dialDirectProxy,
+                    { draft = draft.copy(dialDirectProxy = it.trim()) },
+                    "上游代理（可选）",
+                    supportingText = "例如 http://127.0.0.1:7890 或 socks://127.0.0.1:7891",
+                )
+                if (!directProxyValid) {
+                    Text("仅支持 http://主机:端口 或 socks://主机:端口", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                }
             }
         }
         if (!credentialsValid) {
@@ -794,7 +811,37 @@ private fun SessionSettingsPage(
 ) {
     var draft by remember(stored) { mutableStateOf(stored) }
     var confirmClear by remember { mutableStateOf(false) }
-    EditorScaffold("aTrust 会话", true, onBack, { onSave(draft); onBack() }) {
+    val keepAliveValid = draft.keepAliveUrl.isBlank() || runCatching {
+        val uri = URI(draft.keepAliveUrl)
+        uri.scheme in setOf("http", "https") && !uri.host.isNullOrBlank()
+    }.getOrDefault(false)
+    EditorScaffold("aTrust 会话", keepAliveValid, onBack, { onSave(draft); onBack() }) {
+        item {
+            SegmentedColumn("连接保活") {
+                item {
+                    SettingsSwitchWidget(
+                        "禁用应用层保活",
+                        "关闭每分钟一次的 DNS/HTTP 会话探测",
+                        Icons.TwoTone.Settings,
+                        draft.disableKeepAlive,
+                    ) { draft = draft.copy(disableKeepAlive = it) }
+                }
+            }
+        }
+        item {
+            EditorFields {
+                SectionTextField(
+                    draft.keepAliveUrl,
+                    { draft = draft.copy(keepAliveUrl = it.trim()) },
+                    "保活 URL（可选）",
+                    enabled = !draft.disableKeepAlive,
+                    supportingText = "留空时通过远程 DNS 探测；填写后每分钟发送一次 HTTP GET",
+                )
+                if (!keepAliveValid) {
+                    Text("请输入有效的 http:// 或 https:// URL", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
         item {
             EditorFields {
                 SectionTextField(draft.updateBestNodesInterval.toString(), { it.toIntOrNull()?.let { v -> draft = draft.copy(updateBestNodesInterval = v.coerceAtLeast(0)) } }, "节点优选间隔（秒）", supportingText = "0 表示禁用", keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))

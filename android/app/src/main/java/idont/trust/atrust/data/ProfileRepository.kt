@@ -48,6 +48,9 @@ class ProfileRepository(private val context: Context) {
             values[Keys.DISABLE_SERVER_CONFIG] = profile.disableServerConfig
             values[Keys.DISABLE_REMOTE_DNS] = profile.disableRemoteDns
             values[Keys.SKIP_DOMAIN_RESOURCE] = profile.skipDomainResource
+            values[Keys.DIAL_DIRECT_PROXY] = profile.dialDirectProxy.trim()
+            values[Keys.DISABLE_KEEP_ALIVE] = profile.disableKeepAlive
+            values[Keys.KEEP_ALIVE_URL] = profile.keepAliveUrl.trim()
             values[Keys.UPDATE_BEST_NODES] = profile.updateBestNodesInterval
             values[Keys.SESSION_REFRESH] = profile.sessionRefreshInterval
             values[Keys.CUSTOM_DNS] = profile.customDns.entries.joinToString("\n") { "${it.key}=${it.value}" }
@@ -92,6 +95,9 @@ class ProfileRepository(private val context: Context) {
         disableServerConfig = values[Keys.DISABLE_SERVER_CONFIG] ?: false,
         disableRemoteDns = values[Keys.DISABLE_REMOTE_DNS] ?: false,
         skipDomainResource = values[Keys.SKIP_DOMAIN_RESOURCE] ?: false,
+        dialDirectProxy = values[Keys.DIAL_DIRECT_PROXY] ?: "",
+        disableKeepAlive = values[Keys.DISABLE_KEEP_ALIVE] ?: false,
+        keepAliveUrl = values[Keys.KEEP_ALIVE_URL] ?: "",
         updateBestNodesInterval = values[Keys.UPDATE_BEST_NODES] ?: 300,
         sessionRefreshInterval = values[Keys.SESSION_REFRESH] ?: 1800,
         customDns = values[Keys.CUSTOM_DNS].toDnsMap(),
@@ -134,6 +140,9 @@ class ProfileRepository(private val context: Context) {
         val DISABLE_SERVER_CONFIG = booleanPreferencesKey("disable_server_config")
         val DISABLE_REMOTE_DNS = booleanPreferencesKey("disable_remote_dns")
         val SKIP_DOMAIN_RESOURCE = booleanPreferencesKey("skip_domain_resource")
+        val DIAL_DIRECT_PROXY = stringPreferencesKey("dial_direct_proxy")
+        val DISABLE_KEEP_ALIVE = booleanPreferencesKey("disable_keep_alive")
+        val KEEP_ALIVE_URL = stringPreferencesKey("keep_alive_url")
         val UPDATE_BEST_NODES = intPreferencesKey("update_best_nodes_interval")
         val SESSION_REFRESH = intPreferencesKey("session_refresh_interval")
         val CUSTOM_DNS = stringPreferencesKey("custom_dns")

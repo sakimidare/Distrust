@@ -1,6 +1,7 @@
 package idont.trust.atrust.model
 
 import java.net.InetAddress
+import java.net.URI
 
 data class ValidationIssue(val field: String, val message: String)
 
@@ -20,6 +21,12 @@ object ProfileValidator {
         if (profile.socksPort == profile.httpPort) add(ValidationIssue("httpPort", "SOCKS5 和 HTTP 端口不能相同"))
         if (profile.socksUsername.isBlank() != profile.socksPassword.isBlank()) {
             add(ValidationIssue("socksAuth", "SOCKS5 用户名和密码必须同时填写"))
+        }
+        if (profile.dialDirectProxy.isNotBlank() && !Regex("^(http|socks)://[^:/\\s]+:[0-9]{1,5}$").matches(profile.dialDirectProxy)) {
+            add(ValidationIssue("dialDirectProxy", "直连上游代理格式无效"))
+        }
+        if (profile.keepAliveUrl.isNotBlank() && !isHttpUrl(profile.keepAliveUrl)) {
+            add(ValidationIssue("keepAliveUrl", "保活 URL 必须是有效的 HTTP/HTTPS 地址"))
         }
         profile.routes.filterNot(::isCidr).forEach {
             add(ValidationIssue("routes", "无效的 CIDR：$it"))
@@ -46,4 +53,9 @@ object ProfileValidator {
         require(value.contains('.') || value.contains(':'))
         InetAddress.getByName(value)
     }.isSuccess
+
+    private fun isHttpUrl(value: String): Boolean = runCatching {
+        val uri = URI(value)
+        uri.scheme in setOf("http", "https") && !uri.host.isNullOrBlank()
+    }.getOrDefault(false)
 }
