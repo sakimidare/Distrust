@@ -4,6 +4,9 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CORE="$ROOT/core"
 OUTPUT="$CORE/build/distrust-core.aar"
+TARGET="${DISTRUST_CORE_TARGET:-android}"
+LDFLAGS="${DISTRUST_CORE_LDFLAGS:-}"
+TRIMPATH="${DISTRUST_CORE_TRIMPATH:-false}"
 
 if [[ ! -f "$CORE/go.mod" ]]; then
     echo "DistrustCore submodule is missing. Run: git submodule update --init --recursive" >&2
@@ -21,7 +24,14 @@ fi
 (
     cd "$CORE"
     gomobile init
-    gomobile bind -target=android -androidapi 26 -o "$OUTPUT" ./mobile
+    args=(bind -target="$TARGET" -androidapi 26 -o "$OUTPUT")
+    if [[ "$TRIMPATH" == "true" ]]; then
+        args+=(-trimpath)
+    fi
+    if [[ -n "$LDFLAGS" ]]; then
+        args+=(-ldflags="$LDFLAGS")
+    fi
+    gomobile "${args[@]}" ./mobile
 )
 
-echo "Built $OUTPUT"
+echo "Built $OUTPUT target=$TARGET trimpath=$TRIMPATH"

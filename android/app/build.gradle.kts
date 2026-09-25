@@ -23,15 +23,22 @@ android {
         minSdk = 26
         targetSdk = 37
         versionCode = 1
-        versionName = "0.1.0-dev"
+        versionName = "0.1.0"
 
         vectorDrawables.useSupportLibrary = true
     }
 
     buildTypes {
+        debug {
+            versionNameSuffix = "-dev"
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+            signingConfig = signingConfigs.getByName("debug")
+            ndk {
+                abiFilters += "arm64-v8a"
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
@@ -46,11 +53,12 @@ android {
 
     buildFeatures {
         compose = true
-        buildConfig = true
+        buildConfig = false
     }
 
     packaging {
         resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        jniLibs.useLegacyPackaging = true
     }
 }
 
@@ -70,6 +78,7 @@ dependencies {
     implementation("top.yukonga.miuix.kmp:miuix-nav:0.9.4-rc01")
     implementation("com.materialkolor:material-kolor:5.0.1")
     implementation("com.github.KieronQuinn:MonetCompat:0.4.1")
+    implementation("com.google.android.material:material:1.14.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.10.0")
 
     debugImplementation(composeBom)
@@ -83,6 +92,17 @@ val buildGoCore by tasks.registering(Exec::class) {
     description = "Build the pinned DistrustCore source into an Android AAR"
     workingDir(rootProject.projectDir)
     commandLine("bash", "scripts/build-go-core.sh")
+    val releaseBuild = gradle.startParameter.taskNames.any { it.contains("release", ignoreCase = true) }
+    val coreBuildMode = if (releaseBuild) "release-arm64-min" else "debug-all"
+    inputs.property("coreBuildMode", coreBuildMode)
+    if (releaseBuild) {
+        environment("DISTRUST_CORE_TARGET", "android/arm64")
+        environment("DISTRUST_CORE_TRIMPATH", "true")
+        environment("DISTRUST_CORE_LDFLAGS", "-s -w -buildid=")
+        // The same output path is also used by debug-all builds. A release invocation must
+        // always replace it so a stale four-ABI, symbol-rich AAR cannot leak into the APK.
+        outputs.upToDateWhen { false }
+    }
     inputs.files(
         rootProject.fileTree("core") {
             exclude(".git/**", "build/**")

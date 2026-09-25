@@ -55,6 +55,7 @@ android/local.properties
 android/**/build/
 android/**/.cxx/
 android/app/libs/*.aar
+android/app/release/
 android/core/build/
 *.apk
 *.aab
