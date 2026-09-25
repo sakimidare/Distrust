@@ -176,6 +176,8 @@ fun DistrustApp(
     onSaveProfile: (ConnectionProfile) -> Unit,
     onSwitchProfile: (String) -> Unit,
     onDuplicateProfile: () -> Unit,
+    onCreateProfile: (String) -> Unit,
+    onRenameProfile: (String, String) -> Unit,
     onDeleteProfile: (String) -> Unit,
     onClearLogs: () -> Unit,
     onExportLogs: (List<LogEntry>) -> Unit,
@@ -228,7 +230,7 @@ fun DistrustApp(
             MainShell(
                 profile, profiles, connectionState, logs, snackbar,
                 onConnect, onDisconnect, onClearLogs, onExportLogs, onSaveProfile,
-                onSwitchProfile, onDuplicateProfile, onDeleteProfile,
+                onSwitchProfile, onDuplicateProfile, onCreateProfile, onRenameProfile, onDeleteProfile,
                 onNavigate = push,
                 onOpenWizard = {
                     onResetAuthDiscovery()
@@ -309,6 +311,8 @@ private fun MainShell(
     onSaveProfile: (ConnectionProfile) -> Unit,
     onSwitchProfile: (String) -> Unit,
     onDuplicateProfile: () -> Unit,
+    onCreateProfile: (String) -> Unit,
+    onRenameProfile: (String, String) -> Unit,
     onDeleteProfile: (String) -> Unit,
     onNavigate: (AppRoute) -> Unit,
     onOpenWizard: () -> Unit,
@@ -332,7 +336,7 @@ private fun MainShell(
             ) { page ->
                 when (destinations[page]) {
                     Destination.HOME -> HomePage(profile, state, onConnect, onDisconnect, onSaveProfile, onNavigate, onOpenWizard, bottomPadding)
-                    Destination.PROFILE -> ProfilePage(profile, profiles, onSaveProfile, onSwitchProfile, onDuplicateProfile, onDeleteProfile, onNavigate, onOpenWizard, bottomPadding)
+                    Destination.PROFILE -> ProfilePage(profile, profiles, onSaveProfile, onSwitchProfile, onDuplicateProfile, onCreateProfile, onRenameProfile, onDeleteProfile, onNavigate, onOpenWizard, bottomPadding)
                     Destination.LOGS -> LogPage(logs, onClearLogs, onExportLogs, bottomPadding)
                     Destination.ABOUT -> AboutPage(bottomPadding)
                 }
@@ -582,6 +586,8 @@ private fun ProfilePage(
     onSave: (ConnectionProfile) -> Unit,
     onSwitch: (String) -> Unit,
     onDuplicate: () -> Unit,
+    onCreate: (String) -> Unit,
+    onRename: (String, String) -> Unit,
     onDelete: (String) -> Unit,
     onNavigate: (AppRoute) -> Unit,
     onOpenWizard: () -> Unit,
@@ -590,6 +596,9 @@ private fun ProfilePage(
     val context = LocalContext.current
     var showProfiles by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
+    var showCreate by remember { mutableStateOf(false) }
+    var showRename by remember { mutableStateOf(false) }
+    var profileName by remember(stored.id, stored.name) { mutableStateOf(stored.name) }
     val json = remember { Json { prettyPrint = true; ignoreUnknownKeys = true } }
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         uri ?: return@rememberLauncherForActivityResult
@@ -610,6 +619,8 @@ private fun ProfilePage(
         item {
             SegmentedColumn("配置档案") {
                 item { SettingsJumpPageWidget("当前档案", stored.name, Icons.TwoTone.Key) { showProfiles = true } }
+                item { SettingsBaseWidget("新建档案", "创建一套初始连接配置", Icons.TwoTone.Key, onClick = { profileName = ""; showCreate = true }) }
+                item { SettingsBaseWidget("重命名当前档案", stored.name, Icons.TwoTone.Edit, onClick = { profileName = stored.name; showRename = true }) }
                 item { SettingsBaseWidget("创建副本", "复制当前连接与凭据并切换", Icons.TwoTone.ContentCopy, onClick = onDuplicate) }
                 item { SettingsBaseWidget("删除当前档案", "切换到其余可用档案", Icons.Rounded.DeleteSweep, enabled = profiles.size > 1, isError = true, onClick = if (profiles.size > 1) ({ confirmDelete = true }) else null) }
             }
@@ -662,6 +673,23 @@ private fun ProfilePage(
             text = { Text("档案目录将切换到其余可用配置。") },
             confirmButton = { TextButton(onClick = { confirmDelete = false; onDelete(stored.id) }) { Text("删除") } },
             dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("取消") } },
+        )
+    }
+    if (showCreate || showRename) {
+        val creating = showCreate
+        AlertDialog(
+            onDismissRequest = { showCreate = false; showRename = false },
+            shape = RoundedCornerShape(32.dp),
+            title = { Text(if (creating) "新建配置档案" else "重命名配置档案") },
+            text = { SectionTextField(profileName, { profileName = it }, "档案名称") },
+            confirmButton = {
+                TextButton(enabled = profileName.isNotBlank(), onClick = {
+                    if (creating) onCreate(profileName) else onRename(stored.id, profileName)
+                    showCreate = false
+                    showRename = false
+                }) { Text(if (creating) "创建" else "保存") }
+            },
+            dismissButton = { TextButton(onClick = { showCreate = false; showRename = false }) { Text("取消") } },
         )
     }
 }
@@ -1362,7 +1390,12 @@ private fun HomeErrorPreview() = DistrustTheme {
 @Preview(name = "Profile page", showSystemUi = true)
 @Composable
 private fun ProfilePagePreview() = DistrustTheme {
-    ProfilePage(previewProfile, listOf(previewProfile), {}, {}, {}, {}, {}, {}, 0.dp)
+    ProfilePage(
+        stored = previewProfile,
+        profiles = listOf(previewProfile),
+        onSave = {}, onSwitch = {}, onDuplicate = {}, onCreate = {}, onRename = { _, _ -> },
+        onDelete = {}, onNavigate = {}, onOpenWizard = {}, bottomPadding = 0.dp,
+    )
 }
 
 @Preview(name = "Connection settings", showSystemUi = true)
@@ -1417,12 +1450,14 @@ private fun AboutPagePreview() = DistrustTheme {
 @Composable
 private fun MainShellPreview() = DistrustTheme {
     MainShell(
-        previewProfile,
-        listOf(previewProfile),
-        ConnectionState.Disconnected,
-        previewLogs,
-        remember { SnackbarHostState() },
-        {}, {}, {}, {}, {}, {}, {}, {}, {}, {},
+        profile = previewProfile,
+        profiles = listOf(previewProfile),
+        state = ConnectionState.Disconnected,
+        logs = previewLogs,
+        snackbar = remember { SnackbarHostState() },
+        onConnect = {}, onDisconnect = {}, onClearLogs = {}, onExportLogs = {}, onSaveProfile = {},
+        onSwitchProfile = {}, onDuplicateProfile = {}, onCreateProfile = {}, onRenameProfile = { _, _ -> },
+        onDeleteProfile = {}, onNavigate = {}, onOpenWizard = {},
     )
 }
 

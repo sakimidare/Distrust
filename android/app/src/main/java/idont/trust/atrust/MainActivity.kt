@@ -73,6 +73,11 @@ class MainActivity : ComponentActivity() {
                         ConnectionServiceController.stopAll(this)
                         viewModel.duplicateProfile()
                     },
+                    onCreateProfile = {
+                        ConnectionServiceController.stopAll(this)
+                        viewModel.createProfile(it)
+                    },
+                    onRenameProfile = viewModel::renameProfile,
                     onDeleteProfile = {
                         ConnectionServiceController.stopAll(this)
                         viewModel.deleteProfile(it)

@@ -82,14 +82,49 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun duplicateProfile() {
         viewModelScope.launch(Dispatchers.IO) {
             val current = repository.profile.first()
+            val existingNames = catalog.load(current).mapTo(mutableSetOf()) { it.name }
+            val baseName = current.name.replace(Regex(" 副本(?: \\d+)?$"), "")
+            var copyName = "$baseName 副本"
+            var suffix = 2
+            while (copyName in existingNames) copyName = "$baseName 副本 ${suffix++}"
             val copy = current.copy(
                 id = UUID.randomUUID().toString(),
-                name = "${current.name} 副本",
+                name = copyName,
                 clientData = "",
             )
             repository.save(copy)
             mutableProfiles.value = catalog.upsert(copy, current)
             Logger.i("Profile", "Created profile '${copy.name}'")
+        }
+    }
+
+    fun createProfile(name: String) {
+        val normalized = name.trim()
+        if (normalized.isEmpty()) return
+        viewModelScope.launch(Dispatchers.IO) {
+            val current = repository.profile.first()
+            val created = ConnectionProfile(
+                id = UUID.randomUUID().toString(),
+                name = normalized,
+                server = "vpn.seu.edu.cn",
+                port = 443,
+            )
+            repository.save(created)
+            mutableProfiles.value = catalog.upsert(created, current)
+            Logger.i("Profile", "Created blank profile '$normalized'")
+        }
+    }
+
+    fun renameProfile(id: String, name: String) {
+        val normalized = name.trim()
+        if (normalized.isEmpty()) return
+        viewModelScope.launch(Dispatchers.IO) {
+            val current = repository.profile.first()
+            val target = catalog.load(current).firstOrNull { it.id == id } ?: return@launch
+            val renamed = target.copy(name = normalized)
+            if (current.id == id) repository.save(renamed)
+            mutableProfiles.value = catalog.upsert(renamed, current)
+            Logger.i("Profile", "Renamed profile to '$normalized'")
         }
     }
 
