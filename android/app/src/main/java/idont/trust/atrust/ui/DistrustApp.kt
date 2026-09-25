@@ -115,6 +115,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.IntSize
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.core.graphics.drawable.toBitmap
 import idont.trust.atrust.logging.LogEntry
 import idont.trust.atrust.logging.LogLevel
@@ -125,6 +126,7 @@ import idont.trust.atrust.model.AppRoutingMode
 import idont.trust.atrust.model.VpnProtocol
 import idont.trust.atrust.data.DnsHistoryStore
 import idont.trust.atrust.service.ConnectionState
+import idont.trust.atrust.service.SessionRuntime
 import idont.trust.atrust.ui.component.SectionTextField
 import idont.trust.atrust.ui.component.SegmentedColumn
 import idont.trust.atrust.ui.component.SegmentedControlWidget
@@ -914,11 +916,28 @@ private fun SessionSettingsPage(
 ) {
     var draft by remember(stored) { mutableStateOf(stored) }
     var confirmClear by remember { mutableStateOf(false) }
+    val health by SessionRuntime.health.collectAsStateWithLifecycle()
     val keepAliveValid = draft.keepAliveUrl.isBlank() || runCatching {
         val uri = URI(draft.keepAliveUrl)
         uri.scheme in setOf("http", "https") && !uri.host.isNullOrBlank()
     }.getOrDefault(false)
     EditorScaffold("aTrust 会话", keepAliveValid, onBack, { onSave(draft); onBack() }) {
+        item {
+            SegmentedColumn("连接健康") {
+                item {
+                    SettingsBaseWidget(
+                        title = if (health.consecutiveFailures == 0) "连接质量正常" else "连接质量波动",
+                        description = buildString {
+                            append(health.detail)
+                            health.latencyMillis?.let { append(" · ${it}ms") }
+                            if (health.consecutiveFailures > 0) append(" · 连续 ${health.consecutiveFailures} 次异常")
+                        },
+                        icon = if (health.consecutiveFailures == 0) Icons.TwoTone.TaskAlt else Icons.TwoTone.Error,
+                        containerColor = if (health.consecutiveFailures >= 3) MaterialTheme.colorScheme.errorContainer else null,
+                    )
+                }
+            }
+        }
         item {
             SegmentedColumn("连接保活") {
                 item {

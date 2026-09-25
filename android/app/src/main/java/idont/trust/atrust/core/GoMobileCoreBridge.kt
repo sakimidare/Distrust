@@ -70,6 +70,14 @@ class GoMobileCoreBridge : CoreBridge {
                         SessionRuntime.reportClientDataUpdated(values?.firstOrNull()?.toString().orEmpty())
                         null
                     }
+                    invoked.name.equals("onHealth", ignoreCase = true) -> {
+                        SessionRuntime.reportHealth(
+                            success = values?.getOrNull(0) as? Boolean ?: false,
+                            latencyMillis = (values?.getOrNull(1) as? Number)?.toLong() ?: 0L,
+                            detail = values?.getOrNull(2)?.toString().orEmpty(),
+                        )
+                        null
+                    }
                     invoked.name == "toString" -> "DistrustSessionCallback"
                     else -> null
                 }
