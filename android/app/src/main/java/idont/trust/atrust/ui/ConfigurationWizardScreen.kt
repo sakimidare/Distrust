@@ -4,6 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
@@ -85,9 +86,14 @@ fun ConfigurationWizardScreen(
         }
     }
     BackHandler(step != WizardStep.PROTOCOL) { previous() }
+    val progress by animateFloatAsState(
+        targetValue = (step.ordinal + 1f) / WizardStep.entries.size,
+        animationSpec = spring(dampingRatio = 0.82f, stiffness = 420f),
+        label = "wizardProgress",
+    )
     Column(Modifier.fillMaxSize()) {
         androidx.compose.material3.LinearProgressIndicator(
-            progress = { (step.ordinal + 1f) / WizardStep.entries.size },
+            progress = { progress },
             modifier = Modifier.fillMaxWidth(),
         )
         Column(Modifier.padding(horizontal = 20.dp, vertical = 12.dp)) {

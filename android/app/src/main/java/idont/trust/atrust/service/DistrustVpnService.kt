@@ -14,6 +14,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import idont.trust.atrust.logging.Logger
 
@@ -26,6 +27,19 @@ class DistrustVpnService : VpnService() {
         super.onCreate()
         Logger.i("VpnService", "Service created")
         ServiceNotifications.createChannels(this)
+        scope.launch {
+            val repository = ProfileRepository(applicationContext)
+            SessionRuntime.events.collect { event ->
+                when (event) {
+                    is SessionEvent.ClientDataUpdated -> repository.updateClientData(event.clientData)
+                    is SessionEvent.Expired -> {
+                        Logger.w("VpnService", "Stopping VPN because the aTrust session expired: ${event.reason}")
+                        repository.updateClientData("")
+                        fail("aTrust 会话已过期，请重新完成认证")
+                    }
+                }
+            }
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -134,6 +148,9 @@ class DistrustVpnService : VpnService() {
             val result = core.runTun(goOwnedFd)
             if (result.isFailure && ConnectionRuntime.state.value is ConnectionState.Connected) {
                 fail(result.exceptionOrNull().userMessage())
+            } else if (ConnectionRuntime.state.value is ConnectionState.Failed) {
+                Logger.d("VpnService", "TUN exited after a reported failure; preserving Failed state")
+                return@launch
             } else {
                 disconnect()
             }

@@ -15,7 +15,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.collect
 import idont.trust.atrust.logging.Logger
 
 class LocalProxyService : Service() {
@@ -27,13 +27,17 @@ class LocalProxyService : Service() {
         Logger.i("ProxyService", "Service created")
         ServiceNotifications.createChannels(this)
         scope.launch {
-            ConnectionRuntime.state.collectLatest { state ->
-                if (state is ConnectionState.Failed && state.message.contains("会话已过期")) {
-                    Logger.w("ProxyService", "Stopping proxy because the aTrust session expired")
-                    ProfileRepository(applicationContext).updateClientData("")
-                    core.stop()
-                    stopForeground(STOP_FOREGROUND_REMOVE)
-                    stopSelf()
+            val repository = ProfileRepository(applicationContext)
+            SessionRuntime.events.collect { event ->
+                when (event) {
+                    is SessionEvent.ClientDataUpdated -> repository.updateClientData(event.clientData)
+                    is SessionEvent.Expired -> {
+                        Logger.w("ProxyService", "Stopping proxy because the aTrust session expired: ${event.reason}")
+                        repository.updateClientData("")
+                        core.stop()
+                        stopForeground(STOP_FOREGROUND_REMOVE)
+                        stopSelf()
+                    }
                 }
             }
         }

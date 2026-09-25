@@ -46,6 +46,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun clearLogs() = Logger.clear()
+    fun clearSession() {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.clearClientData()
+        }
+    }
     fun submitAuth(responseJson: String) = AuthRuntime.respond(responseJson)
     fun cancelAuth() {
         Logger.w("Auth", "Authentication challenge cancelled by user")

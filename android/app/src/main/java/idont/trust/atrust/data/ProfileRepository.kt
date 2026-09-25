@@ -55,6 +55,15 @@ class ProfileRepository(private val context: Context) {
         secrets.writeClientData(clientData)
     }
 
+    suspend fun clearClientData() {
+        Logger.i("ProfileRepository", "Clearing encrypted aTrust client session")
+        secrets.writeClientData("")
+        // Trigger profile collectors so stale clientData cannot be written back by a later UI save.
+        context.profileDataStore.edit { values ->
+            values[Keys.SESSION_REVISION] = (values[Keys.SESSION_REVISION] ?: 0) + 1
+        }
+    }
+
     private fun toProfile(values: Preferences): ConnectionProfile = ConnectionProfile(
         name = values[Keys.NAME] ?: "默认配置",
         mode = values[Keys.MODE].enumOrDefault(ConnectionMode.LOCAL_PROXY),
@@ -117,5 +126,6 @@ class ProfileRepository(private val context: Context) {
         val UPDATE_BEST_NODES = intPreferencesKey("update_best_nodes_interval")
         val SESSION_REFRESH = intPreferencesKey("session_refresh_interval")
         val CUSTOM_DNS = stringPreferencesKey("custom_dns")
+        val SESSION_REVISION = intPreferencesKey("session_revision")
     }
 }

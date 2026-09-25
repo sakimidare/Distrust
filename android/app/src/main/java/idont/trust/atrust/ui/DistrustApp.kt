@@ -162,6 +162,7 @@ fun DistrustApp(
     authDiscovery: AuthDiscoveryState,
     onSaveProfile: (ConnectionProfile) -> Unit,
     onClearLogs: () -> Unit,
+    onClearSession: () -> Unit,
     onSubmitAuth: (String) -> Unit,
     onCancelAuth: () -> Unit,
     onFetchAuthMethods: (String, Int) -> Unit,
@@ -263,7 +264,7 @@ fun DistrustApp(
             PolicySettingsPage(profile, onSaveProfile, pop)
         }
         entry<AppRoute.SessionSettings>(swipeDismiss = swipeDirection) {
-            SessionSettingsPage(profile, onSaveProfile, pop)
+            SessionSettingsPage(profile, onSaveProfile, onClearSession, pop)
         }
     }
 }
@@ -692,6 +693,7 @@ private fun ConnectionSettingsPage(stored: ConnectionProfile, onSave: (Connectio
         }
         item {
             EditorFields {
+                SectionTextField(draft.name, { draft = draft.copy(name = it) }, "配置名称")
                 SectionTextField(draft.server, { draft = draft.copy(server = it) }, "服务器")
                 SectionTextField(draft.port.toString(), { it.toIntOrNull()?.let { v -> draft = draft.copy(port = v.coerceIn(1, 65535)) } }, "端口", keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
             }
@@ -761,8 +763,14 @@ private fun PolicySettingsPage(stored: ConnectionProfile, onSave: (ConnectionPro
 }
 
 @Composable
-private fun SessionSettingsPage(stored: ConnectionProfile, onSave: (ConnectionProfile) -> Unit, onBack: () -> Unit) {
+private fun SessionSettingsPage(
+    stored: ConnectionProfile,
+    onSave: (ConnectionProfile) -> Unit,
+    onClearSession: () -> Unit,
+    onBack: () -> Unit,
+) {
     var draft by remember(stored) { mutableStateOf(stored) }
+    var confirmClear by remember { mutableStateOf(false) }
     EditorScaffold("aTrust 会话", true, onBack, { onSave(draft); onBack() }) {
         item {
             EditorFields {
@@ -770,6 +778,36 @@ private fun SessionSettingsPage(stored: ConnectionProfile, onSave: (ConnectionPr
                 SectionTextField(draft.sessionRefreshInterval.toString(), { it.toIntOrNull()?.let { v -> draft = draft.copy(sessionRefreshInterval = v.coerceAtLeast(0)) } }, "会话刷新间隔（秒）", supportingText = "0 表示禁用", keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
             }
         }
+        item {
+            SegmentedColumn("已保存会话") {
+                item {
+                    SettingsBaseWidget(
+                        title = if (stored.clientData.isBlank()) "没有保存的会话" else "清除保存的会话",
+                        description = if (stored.clientData.isBlank()) "下次连接需要重新认证" else "删除加密 Cookie，并停止当前连接",
+                        icon = Icons.Rounded.DeleteSweep,
+                        enabled = stored.clientData.isNotBlank(),
+                        isError = stored.clientData.isNotBlank(),
+                        onClick = if (stored.clientData.isNotBlank()) ({ confirmClear = true }) else null,
+                    )
+                }
+            }
+        }
+    }
+    if (confirmClear) {
+        AlertDialog(
+            onDismissRequest = { confirmClear = false },
+            shape = RoundedCornerShape(32.dp),
+            title = { Text("清除 aTrust 会话？") },
+            text = { Text("当前 VPN/代理会被停止，下次连接需要重新完成认证。") },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmClear = false
+                    onClearSession()
+                    onBack()
+                }) { Text("清除") }
+            },
+            dismissButton = { TextButton(onClick = { confirmClear = false }) { Text("取消") } },
+        )
     }
 }
 
@@ -959,7 +997,7 @@ private fun PolicySettingsPagePreview() = DistrustTheme {
 @Preview(name = "Session settings", showSystemUi = true)
 @Composable
 private fun SessionSettingsPagePreview() = DistrustTheme {
-    SessionSettingsPage(previewProfile, {}, {})
+    SessionSettingsPage(previewProfile, {}, {}, {})
 }
 
 @Preview(name = "Mode dialog", showSystemUi = true)

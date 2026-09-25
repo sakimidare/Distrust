@@ -59,6 +59,10 @@ class MainActivity : ComponentActivity() {
                     authDiscovery = authDiscovery,
                     onSaveProfile = viewModel::save,
                     onClearLogs = viewModel::clearLogs,
+                    onClearSession = {
+                        ConnectionServiceController.stopAll(this)
+                        viewModel.clearSession()
+                    },
                     onSubmitAuth = viewModel::submitAuth,
                     onCancelAuth = viewModel::cancelAuth,
                     onFetchAuthMethods = viewModel::fetchAuthMethods,

@@ -10,8 +10,7 @@ import org.json.JSONArray
 import idont.trust.atrust.data.DnsHistoryStore
 import org.json.JSONObject
 import idont.trust.atrust.logging.Logger
-import idont.trust.atrust.service.ConnectionRuntime
-import idont.trust.atrust.service.ConnectionState
+import idont.trust.atrust.service.SessionRuntime
 
 /**
  * Compatibility bridge for the current upstream gomobile AAR.
@@ -33,6 +32,7 @@ class GoMobileCoreBridge : CoreBridge {
     private val setLogCallback: Method? = mobileClass.methodNamed("setLogCallback", 1)
     private val resourceSnapshot: Method? = mobileClass.methodNamed("resourceSnapshot", 0)
     private val setDnsCallback: Method? = mobileClass.methodNamed("setDNSCallback", 1)
+    private val setSessionCallback: Method? = mobileClass.methodNamed("setSessionCallback", 1)
     private val startStack: Method? = mobileClass.method("startStack", Long::class.javaPrimitiveType!!)
         ?: mobileClass.method("startStack", Int::class.javaPrimitiveType!!)
     private val logout: Method? = mobileClass.method("logout")
@@ -47,10 +47,37 @@ class GoMobileCoreBridge : CoreBridge {
     init {
         installCoreLogCallback()
         installSystemDnsCallback()
+        installSessionCallback()
         Logger.i(
             "GoCore",
             "Core bridge initialized; loaded=${mobileClass != null}, easyConnect=${capabilities.easyConnectVpn}, aTrust=${capabilities.aTrustVpn}, proxy=${capabilities.localSocks5}",
         )
+    }
+
+    private fun installSessionCallback() {
+        val method = setSessionCallback ?: return
+        runCatching {
+            val callbackType = method.parameterTypes.single()
+            val callback = Proxy.newProxyInstance(callbackType.classLoader, arrayOf(callbackType)) { _, invoked, values ->
+                when {
+                    invoked.name.equals("onExpired", ignoreCase = true) -> {
+                        SessionRuntime.reportExpired(values?.firstOrNull()?.toString().orEmpty())
+                        null
+                    }
+                    invoked.name.equals("onClientDataUpdated", ignoreCase = true) -> {
+                        SessionRuntime.reportClientDataUpdated(values?.firstOrNull()?.toString().orEmpty())
+                        null
+                    }
+                    invoked.name == "toString" -> "DistrustSessionCallback"
+                    else -> null
+                }
+            }
+            method.invoke(null, callback)
+        }.onSuccess {
+            Logger.d("GoCore", "Installed structured session callback")
+        }.onFailure {
+            Logger.e("GoCore", "Failed to install structured session callback", it)
+        }
     }
 
     private fun installSystemDnsCallback() {
@@ -96,11 +123,8 @@ class GoMobileCoreBridge : CoreBridge {
             val callback = Proxy.newProxyInstance(callbackType.classLoader, arrayOf(callbackType)) { _, invoked, values ->
                 if (invoked.name.equals("onLog", ignoreCase = true)) {
                     val line = values?.firstOrNull()?.toString().orEmpty()
-                    if (line.contains("session-expired event", ignoreCase = true)) {
-                        Logger.e("Session", "aTrust session expired; interactive login is required")
-                        ConnectionRuntime.update(
-                            ConnectionState.Failed("aTrust 会话已过期，请重新完成认证"),
-                        )
+                    if (setSessionCallback == null && line.contains("session-expired event", ignoreCase = true)) {
+                        SessionRuntime.reportExpired(line)
                     }
                     when {
                         line.contains("panic", true) || line.contains("fatal", true) || line.contains("failed", true) -> Logger.e("GoCore", line)
