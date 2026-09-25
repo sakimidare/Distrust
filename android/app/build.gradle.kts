@@ -1,6 +1,17 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
+    id("org.jetbrains.kotlin.plugin.serialization")
+}
+
+kotlin {
+    compilerOptions {
+        freeCompilerArgs.addAll(
+            "-opt-in=androidx.compose.material3.ExperimentalMaterial3ExpressiveApi",
+            "-opt-in=androidx.compose.material3.ExperimentalMaterial3Api",
+            "-opt-in=androidx.compose.foundation.ExperimentalFoundationApi",
+        )
+    }
 }
 
 android {
@@ -51,12 +62,15 @@ dependencies {
     implementation("androidx.core:core-ktx:1.18.0")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.11.0")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.11.0")
-    implementation("androidx.navigation:navigation-compose:2.10.2")
     implementation("androidx.datastore:datastore-preferences:1.2.1")
-    implementation("androidx.compose.material3:material3")
+    implementation("androidx.compose.material3:material3:1.5.0-alpha28")
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-tooling-preview")
+    implementation("top.yukonga.miuix.kmp:miuix-nav:0.9.4-rc01")
+    implementation("com.materialkolor:material-kolor:5.0.1")
+    implementation("com.github.KieronQuinn:MonetCompat:0.4.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.10.0")
 
     debugImplementation(composeBom)
     debugImplementation("androidx.compose.ui:ui-tooling")

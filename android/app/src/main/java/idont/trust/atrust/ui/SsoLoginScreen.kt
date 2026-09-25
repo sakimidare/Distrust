@@ -17,6 +17,7 @@ import android.webkit.WebViewClient
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -36,11 +37,15 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalInspectionMode
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.unit.dp
 import idont.trust.atrust.model.ConnectionProfile
 import java.net.URI
 import idont.trust.atrust.logging.Logger
+import idont.trust.atrust.ui.theme.DistrustTheme
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
@@ -61,6 +66,7 @@ fun SsoLoginScreen(
     var completed by remember(resolvedLoginUrl) { mutableStateOf(false) }
     var progress by remember(resolvedLoginUrl) { mutableStateOf(0) }
     var pageError by remember(resolvedLoginUrl) { mutableStateOf<String?>(null) }
+    val inspectionMode = LocalInspectionMode.current
 
     fun complete(url: String) {
         if (!completed) {
@@ -112,7 +118,11 @@ fun SsoLoginScreen(
                 style = MaterialTheme.typography.bodySmall,
             )
         }
-        AndroidView(
+        if (inspectionMode) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("SSO WebView 预览\n$currentUrl", style = MaterialTheme.typography.bodyLarge)
+            }
+        } else AndroidView(
             modifier = Modifier.fillMaxSize(),
             factory = { context ->
                 WebView(context).apply {
@@ -209,6 +219,17 @@ fun SsoLoginScreen(
             },
         )
     }
+}
+
+@Preview(name = "SSO login", showSystemUi = true)
+@Composable
+private fun SsoLoginScreenPreview() = DistrustTheme {
+    SsoLoginScreen(
+        loginUrl = "/passport/v1/public/casLogin",
+        profile = ConnectionProfile(server = "vpn.seu.edu.cn", loginDomain = "seucas"),
+        onCallback = {},
+        onCancel = {},
+    )
 }
 
 private fun destroyWhenDetached(webView: WebView, attemptsRemaining: Int = 5) {
