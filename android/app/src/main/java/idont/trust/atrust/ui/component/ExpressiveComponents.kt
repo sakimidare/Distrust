@@ -178,7 +178,9 @@ fun SettingsBaseWidget(
     }
     val surfaceModifier = Modifier.fillMaxWidth().heightIn(min = if (description == null) 64.dp else 76.dp)
     val contentColor = when {
-        containerColor != null -> contentColorFor(containerColor)
+        containerColor != null -> contentColorFor(containerColor).let {
+            if (it == Color.Unspecified) MaterialTheme.colorScheme.onSurface else it
+        }
         selected -> MaterialTheme.colorScheme.onPrimaryContainer
         else -> MaterialTheme.colorScheme.onSurface
     }

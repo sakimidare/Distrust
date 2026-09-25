@@ -11,6 +11,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -51,8 +52,11 @@ import androidx.compose.material.icons.twotone.Home
 import androidx.compose.material.icons.twotone.Info
 import androidx.compose.material.icons.twotone.Key
 import androidx.compose.material.icons.twotone.Lan
+import androidx.compose.material.icons.twotone.Error
+import androidx.compose.material.icons.twotone.LinkOff
 import androidx.compose.material.icons.twotone.Settings
 import androidx.compose.material.icons.twotone.Shield
+import androidx.compose.material.icons.twotone.Sync
 import androidx.compose.material.icons.twotone.TaskAlt
 import androidx.compose.material.icons.twotone.Tune
 import androidx.compose.material.icons.twotone.Warning
@@ -145,6 +149,9 @@ private enum class Destination(val label: String, val icon: ImageVector) {
     LOGS("日志", Icons.AutoMirrored.Rounded.ReceiptLong),
     ABOUT("关于", Icons.TwoTone.Info),
 }
+
+private val ConnectedContainerLight = Color(0xFFD1F4D1)
+private val ConnectedContainerDark = Color(0xFF193C20)
 
 @Composable
 fun DistrustApp(
@@ -396,12 +403,48 @@ private fun HomePage(
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val scrollState = rememberScrollState()
     val active = state is ConnectionState.Connecting || state is ConnectionState.Connected
-    val (statusTitle, statusDetail, statusError) = when (state) {
-        ConnectionState.Disconnected -> Triple("尚未连接", "点击连接以启用 ${profile.mode.label}", false)
-        is ConnectionState.Connecting -> Triple("正在连接", "正在准备 ${state.mode.label}", false)
-        is ConnectionState.Connected -> Triple("连接工作正常", state.endpoint, false)
-        ConnectionState.Disconnecting -> Triple("正在断开", "正在释放网络资源", false)
-        is ConnectionState.Failed -> Triple("连接失败", state.message, true)
+    val darkTheme = ThemeConfig.forceDarkMode ?: isSystemInDarkTheme()
+    val statusTitle: String
+    val statusDetail: String
+    val statusIcon: ImageVector
+    val statusContainer: Color?
+    val statusError: Boolean
+    when (state) {
+        ConnectionState.Disconnected -> {
+            statusTitle = "尚未连接"
+            statusDetail = "点击连接以启用 ${profile.mode.label}"
+            statusIcon = Icons.TwoTone.LinkOff
+            statusContainer = null
+            statusError = false
+        }
+        is ConnectionState.Connecting -> {
+            statusTitle = "正在连接"
+            statusDetail = "正在准备 ${state.mode.label}"
+            statusIcon = Icons.TwoTone.Sync
+            statusContainer = null
+            statusError = false
+        }
+        is ConnectionState.Connected -> {
+            statusTitle = "连接工作正常"
+            statusDetail = state.endpoint
+            statusIcon = Icons.TwoTone.TaskAlt
+            statusContainer = if (darkTheme) ConnectedContainerDark else ConnectedContainerLight
+            statusError = false
+        }
+        ConnectionState.Disconnecting -> {
+            statusTitle = "正在断开"
+            statusDetail = "正在释放网络资源"
+            statusIcon = Icons.TwoTone.Sync
+            statusContainer = null
+            statusError = false
+        }
+        is ConnectionState.Failed -> {
+            statusTitle = "连接失败"
+            statusDetail = state.message
+            statusIcon = Icons.TwoTone.Error
+            statusContainer = MaterialTheme.colorScheme.errorContainer
+            statusError = true
+        }
     }
     Scaffold(
         topBar = {
@@ -427,10 +470,10 @@ private fun HomePage(
             SettingsBaseWidget(
                 title = statusTitle,
                 description = statusDetail,
-                icon = if (statusError) Icons.TwoTone.Warning else Icons.TwoTone.TaskAlt,
+                icon = statusIcon,
                 iconSize = 18.dp,
                 isError = statusError,
-                containerColor = if (statusError) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.primaryContainer,
+                containerColor = statusContainer,
             )
             Row(
                 modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
