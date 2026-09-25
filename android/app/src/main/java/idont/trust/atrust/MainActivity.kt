@@ -94,6 +94,12 @@ class MainActivity : ComponentActivity() {
         Logger.d("MainActivity", "onStart")
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        Logger.d("MainActivity", "Reused singleTask activity; action=${intent.action}, data=${intent.data}")
+    }
+
     override fun onStop() {
         Logger.d("MainActivity", "onStop")
         super.onStop()
