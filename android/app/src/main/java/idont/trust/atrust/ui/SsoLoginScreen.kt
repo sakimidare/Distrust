@@ -185,9 +185,34 @@ fun SsoLoginScreen(
                         }
 
                         override fun onPageFinished(view: WebView, url: String) {
-                            // Several campus IdP pages use fixed desktop layouts and may leave a
-                            // restored/focused form above the visible tablet viewport.
-                            view.post { view.scrollTo(0, 0) }
+                            // Some legacy campus IdP pages vertically center a fixed-height form
+                            // against a parent whose height WebView reports incorrectly. This puts
+                            // the username/password controls above the viewport on phones and
+                            // tablets. Limit the fix to the known legacy form IDs.
+                            view.evaluateJavascript(
+                                """
+                                (function() {
+                                  if (!document.getElementById('LoginForm') || !document.getElementById('con')) return 'not-applicable';
+                                  var style = document.getElementById('distrust-webview-compat');
+                                  if (!style) {
+                                    style = document.createElement('style');
+                                    style.id = 'distrust-webview-compat';
+                                    style.textContent = `
+                                      html, body, #LoginForm, .loginbg { min-height: 100vh !important; }
+                                      #con, #authMain, #authCodeDiv {
+                                        top: 16px !important;
+                                        transform: none !important;
+                                        max-height: calc(100vh - 32px) !important;
+                                        overflow-y: auto !important;
+                                      }
+                                    `;
+                                    document.head.appendChild(style);
+                                  }
+                                  window.scrollTo(0, 0);
+                                  return 'applied';
+                                })();
+                                """.trimIndent(),
+                            ) { result -> Logger.d("SSO", "Legacy login layout compatibility: $result") }
                         }
 
                         override fun doUpdateVisitedHistory(view: WebView, url: String?, isReload: Boolean) {
