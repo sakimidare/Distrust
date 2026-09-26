@@ -608,7 +608,15 @@ private fun ProfilePage(
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         uri ?: return@rememberLauncherForActivityResult
         runCatching {
-            val safeProfile = stored.copy(password = "", totpSecret = "", socksPassword = "", clientData = "")
+            val safeProfile = stored.copy(
+                password = "",
+                totpSecret = "",
+                easyConnectTwfId = "",
+                certificateBase64 = "",
+                certificatePassword = "",
+                socksPassword = "",
+                clientData = "",
+            )
             context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(json.encodeToString(safeProfile)) }
         }.onFailure { Logger.e("Profile", "Failed to export profile", it) }
     }
