@@ -146,6 +146,11 @@ fun SsoLoginScreen(
                     settings.loadsImagesAutomatically = true
                     settings.javaScriptCanOpenWindowsAutomatically = false
                     settings.setSupportMultipleWindows(false)
+                    settings.useWideViewPort = true
+                    settings.loadWithOverviewMode = true
+                    settings.setSupportZoom(true)
+                    settings.builtInZoomControls = true
+                    settings.displayZoomControls = false
                     val loginWebView = this
                     CookieManager.getInstance().apply {
                         setAcceptCookie(true)
@@ -176,6 +181,12 @@ fun SsoLoginScreen(
                             Logger.d("SSO", "Page started; url=$url")
                             currentUrl = url
                             pageError = null
+                        }
+
+                        override fun onPageFinished(view: WebView, url: String) {
+                            // Several campus IdP pages use fixed desktop layouts and may leave a
+                            // restored/focused form above the visible tablet viewport.
+                            view.post { view.scrollTo(0, 0) }
                         }
 
                         override fun doUpdateVisitedHistory(view: WebView, url: String?, isReload: Boolean) {
