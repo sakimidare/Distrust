@@ -436,6 +436,7 @@ private fun HomePage(
 ) {
     var showModeDialog by remember { mutableStateOf(false) }
     var editingPort by remember { mutableStateOf<ProxyPort?>(null) }
+    val health by SessionRuntime.health.collectAsStateWithLifecycle()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val scrollState = rememberScrollState()
     val active = state is ConnectionState.Connecting || state is ConnectionState.Connected
@@ -462,7 +463,11 @@ private fun HomePage(
         }
         is ConnectionState.Connected -> {
             statusTitle = "已连接"
-            statusDetail = state.endpoint
+            statusDetail = buildString {
+                append(state.endpoint).append(" · ").append(health.detail)
+                health.latencyMillis?.let { append(" · ${it}ms") }
+                if (health.consecutiveFailures > 0) append(" · 连续 ${health.consecutiveFailures} 次异常")
+            }
             statusIcon = Icons.TwoTone.TaskAlt
             statusContainer = if (darkTheme) ConnectedContainerDark else ConnectedContainerLight
             statusError = false
@@ -945,28 +950,11 @@ private fun SessionSettingsPage(
 ) {
     var draft by remember(stored) { mutableStateOf(stored) }
     var confirmClear by remember { mutableStateOf(false) }
-    val health by SessionRuntime.health.collectAsStateWithLifecycle()
     val keepAliveValid = draft.keepAliveUrl.isBlank() || runCatching {
         val uri = URI(draft.keepAliveUrl)
         uri.scheme in setOf("http", "https") && !uri.host.isNullOrBlank()
     }.getOrDefault(false)
     EditorScaffold("aTrust 会话", keepAliveValid, onBack, { onSave(draft); onBack() }) {
-        item {
-            SegmentedColumn("连接健康") {
-                item {
-                    SettingsBaseWidget(
-                        title = if (health.consecutiveFailures == 0) "连接质量正常" else "连接质量波动",
-                        description = buildString {
-                            append(health.detail)
-                            health.latencyMillis?.let { append(" · ${it}ms") }
-                            if (health.consecutiveFailures > 0) append(" · 连续 ${health.consecutiveFailures} 次异常")
-                        },
-                        icon = if (health.consecutiveFailures == 0) Icons.TwoTone.TaskAlt else Icons.TwoTone.Error,
-                        containerColor = if (health.consecutiveFailures >= 3) MaterialTheme.colorScheme.errorContainer else null,
-                    )
-                }
-            }
-        }
         item {
             SegmentedColumn("连接保活") {
                 item {

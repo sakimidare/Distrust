@@ -66,6 +66,7 @@ class LocalProxyService : Service() {
     }
 
     private fun connect() {
+        SessionRuntime.resetHealth()
         startForeground(
             ServiceNotifications.PROXY_NOTIFICATION,
             ServiceNotifications.build(

@@ -76,6 +76,7 @@ class DistrustVpnService : VpnService() {
             Logger.w("VpnService", "Ignoring duplicate connect request; state=${ConnectionRuntime.state.value}")
             return
         }
+        SessionRuntime.resetHealth()
         startForeground(
             ServiceNotifications.VPN_NOTIFICATION,
             ServiceNotifications.build(

@@ -59,4 +59,9 @@ object SessionRuntime {
         }
         Logger.d("SessionHealth", "success=$success latencyMs=$latencyMillis failures=${mutableHealth.value.consecutiveFailures} detail=$detail")
     }
+
+    fun resetHealth() {
+        mutableHealth.value = SessionHealth()
+        Logger.d("SessionHealth", "Health state reset for a new connection")
+    }
 }
