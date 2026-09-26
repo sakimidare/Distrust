@@ -198,18 +198,23 @@ fun SsoLoginScreen(
                                     style = document.createElement('style');
                                     style.id = 'distrust-webview-compat';
                                     style.textContent = `
-                                      html, body, #LoginForm, .loginbg { min-height: 100vh !important; }
                                       #con, #authMain, #authCodeDiv {
+                                        position: fixed !important;
                                         top: 16px !important;
-                                        transform: none !important;
-                                        max-height: calc(100vh - 32px) !important;
-                                        overflow-y: auto !important;
+                                        left: 50% !important;
+                                        right: auto !important;
+                                        transform: translateX(-50%) !important;
+                                        margin: 0 !important;
+                                        visibility: visible !important;
+                                        opacity: 1 !important;
+                                        z-index: 2147483640 !important;
                                       }
                                     `;
                                     document.head.appendChild(style);
                                   }
                                   window.scrollTo(0, 0);
-                                  return 'applied';
+                                  var rect = document.getElementById('con').getBoundingClientRect();
+                                  return JSON.stringify({applied:true,left:rect.left,top:rect.top,width:rect.width,height:rect.height,viewport:[window.innerWidth,window.innerHeight]});
                                 })();
                                 """.trimIndent(),
                             ) { result -> Logger.d("SSO", "Legacy login layout compatibility: $result") }
