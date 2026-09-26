@@ -11,6 +11,7 @@ import idont.trust.atrust.model.ConnectionMode
 import idont.trust.atrust.model.ConnectionProfile
 import idont.trust.atrust.model.VpnProtocol
 import idont.trust.atrust.model.AppRoutingMode
+import idont.trust.atrust.model.ServerScheme
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import idont.trust.atrust.logging.Logger
@@ -37,6 +38,7 @@ class ProfileRepository(private val context: Context) {
             values[Keys.MODE] = profile.mode.name
             values[Keys.PROTOCOL] = profile.protocol.name
             values[Keys.SERVER] = profile.server.trim()
+            values[Keys.SERVER_SCHEME] = profile.serverScheme.name
             values[Keys.PORT] = profile.port
             values[Keys.USERNAME] = profile.username.trim()
             values[Keys.LOGIN_DOMAIN] = profile.loginDomain.trim()
@@ -86,6 +88,7 @@ class ProfileRepository(private val context: Context) {
         mode = values[Keys.MODE].enumOrDefault(ConnectionMode.LOCAL_PROXY),
         protocol = values[Keys.PROTOCOL].enumOrDefault(VpnProtocol.ATRUST),
         server = values[Keys.SERVER] ?: "vpn.seu.edu.cn",
+        serverScheme = values[Keys.SERVER_SCHEME].enumOrDefault(ServerScheme.HTTPS),
         port = values[Keys.PORT] ?: 443,
         username = values[Keys.USERNAME] ?: "",
         password = secrets.readPassword(),
@@ -142,6 +145,7 @@ class ProfileRepository(private val context: Context) {
         val MODE = stringPreferencesKey("mode")
         val PROTOCOL = stringPreferencesKey("protocol")
         val SERVER = stringPreferencesKey("server")
+        val SERVER_SCHEME = stringPreferencesKey("server_scheme")
         val PORT = intPreferencesKey("port")
         val USERNAME = stringPreferencesKey("username")
         val LOGIN_DOMAIN = stringPreferencesKey("login_domain")

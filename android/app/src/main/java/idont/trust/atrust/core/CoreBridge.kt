@@ -1,6 +1,7 @@
 package idont.trust.atrust.core
 
 import idont.trust.atrust.model.ConnectionProfile
+import idont.trust.atrust.model.ServerScheme
 
 data class CoreCapabilities(
     val easyConnectVpn: Boolean,
@@ -35,7 +36,7 @@ data class ProxySession(
 interface CoreBridge {
     val capabilities: CoreCapabilities
 
-    fun fetchAuthMethods(server: String, port: Int): Result<List<AuthMethod>>
+    fun fetchAuthMethods(server: String, port: Int, scheme: ServerScheme = ServerScheme.HTTPS): Result<List<AuthMethod>>
     fun login(profile: ConnectionProfile, onChallenge: (String) -> String): Result<NegotiatedTunnel>
     fun runTun(fileDescriptor: Int): Result<Unit>
     fun startLocalProxy(profile: ConnectionProfile, onChallenge: (String) -> String): Result<ProxySession>

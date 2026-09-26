@@ -126,6 +126,7 @@ import idont.trust.atrust.model.ConnectionMode
 import idont.trust.atrust.model.ConnectionProfile
 import idont.trust.atrust.model.AppRoutingMode
 import idont.trust.atrust.model.VpnProtocol
+import idont.trust.atrust.model.ServerScheme
 import idont.trust.atrust.data.DnsHistoryStore
 import idont.trust.atrust.service.ConnectionState
 import idont.trust.atrust.service.SessionRuntime
@@ -187,7 +188,7 @@ fun DistrustApp(
     onClearFakeDns: () -> Result<Unit>,
     onSubmitAuth: (String) -> Unit,
     onCancelAuth: () -> Unit,
-    onFetchAuthMethods: (String, Int) -> Unit,
+    onFetchAuthMethods: (String, Int, ServerScheme) -> Unit,
     onResetAuthDiscovery: () -> Unit,
     onConnect: (ConnectionProfile) -> Unit,
     onDisconnect: () -> Unit,
@@ -658,7 +659,7 @@ private fun ProfilePage(
                 item { SettingsJumpPageWidget("DNS 与分流", "资源策略、自定义 DNS 与路由", Icons.TwoTone.Shield) { onNavigate(AppRoute.PolicySettings) } }
                 item { SettingsJumpPageWidget("DNS 缓存", "查看和清除历史成功地址与 FakeDNS", Icons.TwoTone.Settings) { onNavigate(AppRoute.DnsCacheSettings) } }
                 item { SettingsJumpPageWidget("按应用路由", "选择进入或绕过系统 VPN 的应用", Icons.TwoTone.Shield) { onNavigate(AppRoute.AppRoutingSettings) } }
-                item { SettingsJumpPageWidget("aTrust 会话", "节点优选和会话刷新间隔", Icons.TwoTone.Settings) { onNavigate(AppRoute.SessionSettings) } }
+                item { SettingsJumpPageWidget("连接与会话", if (stored.protocol == VpnProtocol.ATRUST) "保活、节点优选和会话刷新" else "保活与 EasyConnect 会话参数", Icons.TwoTone.Settings) { onNavigate(AppRoute.SessionSettings) } }
             }
         }
     }
@@ -840,6 +841,18 @@ private fun ConnectionSettingsPage(stored: ConnectionProfile, onSave: (Connectio
                         }
                     }
                 }
+                item {
+                    SegmentedControlWidget("服务器传输") {
+                        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                            ServerScheme.entries.forEachIndexed { index, scheme ->
+                                SegmentedButton(draft.serverScheme == scheme, { draft = draft.copy(serverScheme = scheme) }, SegmentedButtonDefaults.itemShape(index, ServerScheme.entries.size)) { Text(scheme.name) }
+                            }
+                        }
+                        if (draft.serverScheme == ServerScheme.HTTP) {
+                            Text("HTTP 以明文方式传输认证与控制数据", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 8.dp))
+                        }
+                    }
+                }
             }
         }
         item {
@@ -997,7 +1010,7 @@ private fun SessionSettingsPage(
         val uri = URI(draft.keepAliveUrl)
         uri.scheme in setOf("http", "https") && !uri.host.isNullOrBlank()
     }.getOrDefault(false)
-    EditorScaffold("aTrust 会话", keepAliveValid, onBack, { onSave(draft); onBack() }) {
+    EditorScaffold("连接与会话", keepAliveValid, onBack, { onSave(draft); onBack() }) {
         item {
             SegmentedColumn("连接保活") {
                 item {
@@ -1024,13 +1037,13 @@ private fun SessionSettingsPage(
                 }
             }
         }
-        item {
+        if (draft.protocol == VpnProtocol.ATRUST) item {
             EditorFields {
                 SectionTextField(draft.updateBestNodesInterval.toString(), { it.toIntOrNull()?.let { v -> draft = draft.copy(updateBestNodesInterval = v.coerceAtLeast(0)) } }, "节点优选间隔（秒）", supportingText = "设置为 0 时停止定时优选", keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
                 SectionTextField(draft.sessionRefreshInterval.toString(), { it.toIntOrNull()?.let { v -> draft = draft.copy(sessionRefreshInterval = v.coerceAtLeast(0)) } }, "会话刷新间隔（秒）", supportingText = "设置为 0 时停止定时刷新", keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
             }
         }
-        item {
+        if (draft.protocol == VpnProtocol.ATRUST) item {
             SegmentedColumn("已保存会话") {
                 item {
                     SettingsBaseWidget(
@@ -1049,7 +1062,7 @@ private fun SessionSettingsPage(
         AlertDialog(
             onDismissRequest = { confirmClear = false },
             shape = RoundedCornerShape(32.dp),
-            title = { Text("清除 aTrust 会话？") },
+            title = { Text("清除保存的会话？") },
             text = { Text("当前 VPN/代理会被停止，下次连接需要重新完成认证。") },
             confirmButton = {
                 TextButton(onClick = {

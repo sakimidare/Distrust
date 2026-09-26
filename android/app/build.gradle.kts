@@ -22,8 +22,8 @@ android {
         applicationId = "idont.trust.atrust"
         minSdk = 26
         targetSdk = 37
-        versionCode = 3
-        versionName = "0.1.3a"
+        versionCode = 4
+        versionName = "0.1.4a"
 
         vectorDrawables.useSupportLibrary = true
     }

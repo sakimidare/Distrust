@@ -59,6 +59,7 @@ import idont.trust.atrust.model.ConnectionMode
 import idont.trust.atrust.model.ConnectionProfile
 import idont.trust.atrust.model.ProfileValidator
 import idont.trust.atrust.model.VpnProtocol
+import idont.trust.atrust.model.ServerScheme
 import idont.trust.atrust.ui.component.SectionTextField
 import idont.trust.atrust.ui.component.SegmentedColumn
 import idont.trust.atrust.ui.component.SettingsBaseWidget
@@ -67,14 +68,16 @@ import idont.trust.atrust.ui.theme.DistrustTheme
 import idont.trust.atrust.logging.Logger
 
 private enum class WizardStep(val title: String) {
-    PROTOCOL("选择协议"), SERVER("服务器"), AUTH("认证方式"), CREDENTIALS("账号凭据"), MODE("运行方式")
+    PROFILE("配置档案"), PROTOCOL("协议与传输"), SERVER("服务器"), AUTH("认证方式"), CREDENTIALS("认证凭据"), MODE("运行方式")
 }
+
+private enum class EasyConnectAuthChoice { PASSWORD, TWFID, CERTIFICATE }
 
 @Composable
 fun ConfigurationWizardScreen(
     initial: ConnectionProfile,
     authDiscovery: AuthDiscoveryState,
-    onFetchAuthMethods: (String, Int) -> Unit,
+    onFetchAuthMethods: (String, Int, ServerScheme) -> Unit,
     onResetAuthDiscovery: () -> Unit,
     onFinish: (ConnectionProfile) -> Unit,
     previewStep: Int = 0,
@@ -88,17 +91,27 @@ fun ConfigurationWizardScreen(
             draft = draft.copy(certificateBase64 = Base64.encodeToString(bytes, Base64.NO_WRAP))
         }.onFailure { Logger.e("Certificate", "Failed to read EasyConnect certificate", it) }
     }
-    var step by remember(previewStep) { mutableStateOf(WizardStep.entries.getOrElse(previewStep) { WizardStep.PROTOCOL }) }
+    var step by remember(previewStep) { mutableStateOf(WizardStep.entries.getOrElse(previewStep) { WizardStep.PROFILE }) }
+    var easyAuthChoice by remember(initial) {
+        mutableStateOf(
+            when {
+                initial.easyConnectTwfId.isNotBlank() -> EasyConnectAuthChoice.TWFID
+                initial.certificateBase64.isNotBlank() -> EasyConnectAuthChoice.CERTIFICATE
+                else -> EasyConnectAuthChoice.PASSWORD
+            },
+        )
+    }
     val previous: () -> Unit = {
         step = when (step) {
-            WizardStep.PROTOCOL -> WizardStep.PROTOCOL
+            WizardStep.PROFILE -> WizardStep.PROFILE
+            WizardStep.PROTOCOL -> WizardStep.PROFILE
             WizardStep.SERVER -> WizardStep.PROTOCOL
             WizardStep.AUTH -> WizardStep.SERVER
-            WizardStep.CREDENTIALS -> if (draft.protocol == VpnProtocol.ATRUST) WizardStep.AUTH else WizardStep.SERVER
+            WizardStep.CREDENTIALS -> WizardStep.AUTH
             WizardStep.MODE -> WizardStep.CREDENTIALS
         }
     }
-    BackHandler(step != WizardStep.PROTOCOL) { previous() }
+    BackHandler(step != WizardStep.PROFILE) { previous() }
     val progress by animateFloatAsState(
         targetValue = (step.ordinal + 1f) / WizardStep.entries.size,
         animationSpec = spring(dampingRatio = 0.82f, stiffness = 420f),
@@ -129,6 +142,15 @@ fun ConfigurationWizardScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 when (current) {
+                    WizardStep.PROFILE -> {
+                        item {
+                            Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                SectionTextField(draft.name, { draft = draft.copy(name = it) }, "档案名称")
+                                Text("为这套服务器、认证和路由配置设置易于识别的名称。", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                        item { WizardNavigation(null, { step = WizardStep.PROTOCOL }, draft.name.isNotBlank()) }
+                    }
                     WizardStep.PROTOCOL -> {
                         item {
                             SegmentedColumn("协议") {
@@ -142,11 +164,18 @@ fun ConfigurationWizardScreen(
                                                 }
                                             }
                                         }
+                                        Text("服务器传输", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 16.dp))
+                                        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(top = 8.dp)) {
+                                            ServerScheme.entries.forEachIndexed { index, scheme ->
+                                                SegmentedButton(draft.serverScheme == scheme, { draft = draft.copy(serverScheme = scheme) }, SegmentedButtonDefaults.itemShape(index, ServerScheme.entries.size)) { Text(scheme.name) }
+                                            }
+                                        }
+                                        if (draft.serverScheme == ServerScheme.HTTP) Text("HTTP 以明文方式传输认证与控制数据", color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 8.dp))
                                     }
                                 }
                             }
                         }
-                        item { WizardNavigation(null, { step = WizardStep.SERVER }) }
+                        item { WizardNavigation(previous, { step = WizardStep.SERVER }) }
                     }
                     WizardStep.SERVER -> {
                         item {
@@ -155,23 +184,23 @@ fun ConfigurationWizardScreen(
                                 SectionTextField(draft.port.toString(), { it.toIntOrNull()?.let { v -> draft = draft.copy(port = v.coerceIn(1, 65535)) } }, "端口", keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
                             }
                         }
-                        item { WizardNavigation(previous, { step = if (draft.protocol == VpnProtocol.ATRUST) WizardStep.AUTH else WizardStep.CREDENTIALS }, draft.server.isNotBlank()) }
+                        item { WizardNavigation(previous, { step = WizardStep.AUTH }, draft.server.isNotBlank()) }
                     }
                     WizardStep.AUTH -> {
-                        item {
+                        if (draft.protocol == VpnProtocol.ATRUST) item {
                             SegmentedColumn("服务器认证") {
                                 item {
                                     SettingsBaseWidget(
                                         title = if (authDiscovery is AuthDiscoveryState.Loading) "正在读取认证方式" else "从服务器获取认证方式",
                                         description = "读取服务器公开认证配置",
                                         icon = Icons.Rounded.CloudSync,
-                                        onClick = { if (authDiscovery !is AuthDiscoveryState.Loading) onFetchAuthMethods(draft.server, draft.port) },
+                                        onClick = { if (authDiscovery !is AuthDiscoveryState.Loading) onFetchAuthMethods(draft.server, draft.port, draft.serverScheme) },
                                         trailingContent = if (authDiscovery is AuthDiscoveryState.Loading) ({ LoadingIndicator(Modifier.size(28.dp)) }) else null,
                                     )
                                 }
                             }
                         }
-                        when (authDiscovery) {
+                        if (draft.protocol == VpnProtocol.ATRUST) when (authDiscovery) {
                             is AuthDiscoveryState.Error -> item { Text(authDiscovery.message, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(horizontal = 20.dp)) }
                             is AuthDiscoveryState.Success -> {
                                 item {
@@ -192,6 +221,21 @@ fun ConfigurationWizardScreen(
                             }
                             else -> Unit
                         }
+                        if (draft.protocol == VpnProtocol.EASYCONNECT) item {
+                            SegmentedColumn("EasyConnect 认证") {
+                                item {
+                                    SegmentedControlWidget("主认证方式") {
+                                        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                                            EasyConnectAuthChoice.entries.forEachIndexed { index, choice ->
+                                                SegmentedButton(easyAuthChoice == choice, { easyAuthChoice = choice }, SegmentedButtonDefaults.itemShape(index, EasyConnectAuthChoice.entries.size)) {
+                                                    Text(when (choice) { EasyConnectAuthChoice.PASSWORD -> "密码"; EasyConnectAuthChoice.TWFID -> "TwfID"; EasyConnectAuthChoice.CERTIFICATE -> "证书" })
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                         item { WizardNavigation({ onResetAuthDiscovery(); previous() }, { step = WizardStep.CREDENTIALS }) }
                     }
                     WizardStep.CREDENTIALS -> {
@@ -199,17 +243,19 @@ fun ConfigurationWizardScreen(
                             val normalized = draft.authType.removePrefix("auth/")
                             Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                                 if (draft.protocol == VpnProtocol.EASYCONNECT) {
-                                    SectionTextField(draft.username, { draft = draft.copy(username = it) }, "账号")
-                                    SectionTextField(draft.password, { draft = draft.copy(password = it) }, "密码", visualTransformation = PasswordVisualTransformation())
-                                    SectionTextField(draft.totpSecret, { draft = draft.copy(totpSecret = it) }, "TOTP 密钥（可选）", visualTransformation = PasswordVisualTransformation())
-                                    SectionTextField(draft.easyConnectTwfId, { draft = draft.copy(easyConnectTwfId = it) }, "TwfID（可选）")
-                                    SettingsBaseWidget(
-                                        if (draft.certificateBase64.isBlank()) "选择 P12/PFX 证书" else "证书已载入",
-                                        "服务器要求证书认证时使用",
-                                        Icons.Rounded.Key,
-                                        onClick = { certificateLauncher.launch(arrayOf("application/x-pkcs12", "application/octet-stream", "*/*")) },
-                                    )
-                                    SectionTextField(draft.certificatePassword, { draft = draft.copy(certificatePassword = it) }, "证书密码（可选）", enabled = draft.certificateBase64.isNotBlank(), visualTransformation = PasswordVisualTransformation())
+                                    when (easyAuthChoice) {
+                                        EasyConnectAuthChoice.PASSWORD -> {
+                                            SectionTextField(draft.username, { draft = draft.copy(username = it, easyConnectTwfId = "", certificateBase64 = "", certificatePassword = "") }, "账号")
+                                            SectionTextField(draft.password, { draft = draft.copy(password = it) }, "密码", visualTransformation = PasswordVisualTransformation())
+                                            SectionTextField(draft.totpSecret, { draft = draft.copy(totpSecret = it) }, "TOTP 密钥（可选）", visualTransformation = PasswordVisualTransformation())
+                                        }
+                                        EasyConnectAuthChoice.TWFID -> SectionTextField(draft.easyConnectTwfId, { draft = draft.copy(easyConnectTwfId = it, certificateBase64 = "", certificatePassword = "") }, "TwfID")
+                                        EasyConnectAuthChoice.CERTIFICATE -> {
+                                            SettingsBaseWidget(if (draft.certificateBase64.isBlank()) "选择 P12/PFX 证书" else "证书已载入", "选择 EasyConnect 客户端证书", Icons.Rounded.Key, onClick = { certificateLauncher.launch(arrayOf("application/x-pkcs12", "application/octet-stream", "*/*")) })
+                                            SectionTextField(draft.certificatePassword, { draft = draft.copy(certificatePassword = it, easyConnectTwfId = "") }, "证书密码（可选）", enabled = draft.certificateBase64.isNotBlank(), visualTransformation = PasswordVisualTransformation())
+                                            SectionTextField(draft.totpSecret, { draft = draft.copy(totpSecret = it) }, "TOTP 密钥（可选）", visualTransformation = PasswordVisualTransformation())
+                                        }
+                                    }
                                 } else when (normalized) {
                                     "smsCheckCode" -> SectionTextField(draft.phone, { draft = draft.copy(phone = it) }, "手机号码")
                                     "cas", "httpsOauth2" -> SettingsBaseWidget("SSO 登录", "连接时将在应用内打开安全登录页面", Icons.Rounded.Security)
@@ -300,13 +346,13 @@ private val wizardPreviewProfile = ConnectionProfile(
 @Preview(name = "Wizard · protocol", showSystemUi = true)
 @Composable
 private fun WizardProtocolPreview() = DistrustTheme {
-    ConfigurationWizardScreen(wizardPreviewProfile, AuthDiscoveryState.Idle, { _, _ -> }, {}, {}, 0)
+    ConfigurationWizardScreen(wizardPreviewProfile, AuthDiscoveryState.Idle, { _, _, _ -> }, {}, {}, 0)
 }
 
 @Preview(name = "Wizard · server", showSystemUi = true)
 @Composable
 private fun WizardServerPreview() = DistrustTheme {
-    ConfigurationWizardScreen(wizardPreviewProfile, AuthDiscoveryState.Idle, { _, _ -> }, {}, {}, 1)
+    ConfigurationWizardScreen(wizardPreviewProfile, AuthDiscoveryState.Idle, { _, _, _ -> }, {}, {}, 1)
 }
 
 @Preview(name = "Wizard · auth", showSystemUi = true)
@@ -320,18 +366,18 @@ private fun WizardAuthPreview() = DistrustTheme {
                 AuthMethod("账号密码", "auth/psw", "", ""),
             ),
         ),
-        { _, _ -> }, {}, {}, 2,
+        { _, _, _ -> }, {}, {}, 2,
     )
 }
 
 @Preview(name = "Wizard · credentials", showSystemUi = true)
 @Composable
 private fun WizardCredentialsPreview() = DistrustTheme {
-    ConfigurationWizardScreen(wizardPreviewProfile, AuthDiscoveryState.Idle, { _, _ -> }, {}, {}, 3)
+    ConfigurationWizardScreen(wizardPreviewProfile, AuthDiscoveryState.Idle, { _, _, _ -> }, {}, {}, 3)
 }
 
 @Preview(name = "Wizard · mode", showSystemUi = true)
 @Composable
 private fun WizardModePreview() = DistrustTheme {
-    ConfigurationWizardScreen(wizardPreviewProfile, AuthDiscoveryState.Idle, { _, _ -> }, {}, {}, 4)
+    ConfigurationWizardScreen(wizardPreviewProfile, AuthDiscoveryState.Idle, { _, _, _ -> }, {}, {}, 4)
 }

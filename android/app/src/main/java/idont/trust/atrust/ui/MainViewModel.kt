@@ -8,6 +8,7 @@ import idont.trust.atrust.data.ProfileCatalogRepository
 import idont.trust.atrust.core.AuthMethod
 import idont.trust.atrust.core.GoMobileCoreBridge
 import idont.trust.atrust.model.ConnectionProfile
+import idont.trust.atrust.model.ServerScheme
 import idont.trust.atrust.service.ConnectionRuntime
 import idont.trust.atrust.service.ConnectionState
 import idont.trust.atrust.logging.Logger
@@ -146,12 +147,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         AuthRuntime.cancel()
     }
 
-    fun fetchAuthMethods(server: String, port: Int) {
+    fun fetchAuthMethods(server: String, port: Int, scheme: ServerScheme = ServerScheme.HTTPS) {
         if (mutableAuthDiscovery.value is AuthDiscoveryState.Loading) return
         Logger.i("AuthDiscovery", "Fetching authentication methods from $server:$port")
         viewModelScope.launch {
             mutableAuthDiscovery.value = AuthDiscoveryState.Loading
-            val result = withContext(Dispatchers.IO) { core.fetchAuthMethods(server, port) }
+            val result = withContext(Dispatchers.IO) { core.fetchAuthMethods(server, port, scheme) }
             mutableAuthDiscovery.value = result.fold(
                 onSuccess = {
                     Logger.i("AuthDiscovery", "Server returned ${it.size} authentication methods")

@@ -9,7 +9,10 @@ object ProfileValidator {
     fun validate(profile: ConnectionProfile): List<ValidationIssue> = buildList {
         if (profile.server.isBlank()) add(ValidationIssue("server", "服务器地址不能为空"))
         if (profile.port !in 1..65535) add(ValidationIssue("port", "服务器端口必须在 1～65535 之间"))
-        val passwordAuth = (profile.protocol == VpnProtocol.EASYCONNECT && profile.easyConnectTwfId.isBlank()) ||
+        if (profile.serverScheme == ServerScheme.HTTP && profile.certificateBase64.isNotBlank()) {
+            add(ValidationIssue("serverScheme", "客户端证书需要 HTTPS 连接"))
+        }
+        val passwordAuth = (profile.protocol == VpnProtocol.EASYCONNECT && profile.easyConnectTwfId.isBlank() && profile.certificateBase64.isBlank()) ||
             profile.authType.removePrefix("auth/") == "psw"
         if (passwordAuth && profile.username.isBlank()) add(ValidationIssue("username", "账号不能为空"))
         if (passwordAuth && profile.password.isBlank()) add(ValidationIssue("password", "密码不能为空"))

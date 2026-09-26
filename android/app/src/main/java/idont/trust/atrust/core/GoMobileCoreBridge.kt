@@ -2,6 +2,7 @@ package idont.trust.atrust.core
 
 import idont.trust.atrust.model.ConnectionProfile
 import idont.trust.atrust.model.VpnProtocol
+import idont.trust.atrust.model.ServerScheme
 import java.lang.reflect.Method
 import java.lang.reflect.Proxy
 import java.net.Inet4Address
@@ -29,6 +30,7 @@ class GoMobileCoreBridge : CoreBridge {
     private val prepareWithCallback: Method? = mobileClass.methodNamed("prepareWithCallback", 2)
     private val startProxyWithCallback: Method? = mobileClass.methodNamed("startProxyWithCallback", 2)
     private val fetchAuthMethods: Method? = mobileClass.methodNamed("fetchAuthMethods", 2)
+    private val fetchAuthMethodsWithScheme: Method? = mobileClass.methodNamed("fetchAuthMethodsWithScheme", 3)
     private val setLogCallback: Method? = mobileClass.methodNamed("setLogCallback", 1)
     private val resourceSnapshot: Method? = mobileClass.methodNamed("resourceSnapshot", 0)
     private val fakeDnsSnapshot: Method? = mobileClass.methodNamed("fakeDNSSnapshot", 0)
@@ -160,10 +162,11 @@ class GoMobileCoreBridge : CoreBridge {
         }
     }
 
-    override fun fetchAuthMethods(server: String, port: Int): Result<List<AuthMethod>> = runCatching {
+    override fun fetchAuthMethods(server: String, port: Int, scheme: ServerScheme): Result<List<AuthMethod>> = runCatching {
         Logger.d("GoCore", "Invoking FetchAuthMethods; server=$server:$port")
-        val method = checkNotNull(fetchAuthMethods) { "当前核心不支持获取服务器认证方式" }
-        val result = JSONObject(method.invoke(null, server, port.toLong())?.toString().orEmpty())
+        val method = fetchAuthMethodsWithScheme ?: checkNotNull(fetchAuthMethods) { "当前核心不支持获取服务器认证方式" }
+        val raw = if (method.parameterCount == 3) method.invoke(null, server, port.toLong(), scheme.name.lowercase()) else method.invoke(null, server, port.toLong())
+        val result = JSONObject(raw?.toString().orEmpty())
         check(result.optBoolean("ok")) { result.optString("errorMessage", "获取认证方式失败") }
         val methods = result.optJSONArray("authMethods") ?: return@runCatching emptyList()
         buildList {
@@ -277,6 +280,7 @@ class GoMobileCoreBridge : CoreBridge {
         val config = JSONObject()
             .put("protocol", if (profile.protocol == VpnProtocol.ATRUST) "atrust" else "easyconnect")
             .put("server", profile.server)
+            .put("serverScheme", profile.serverScheme.name.lowercase())
             .put("port", profile.port)
             .put("username", profile.username)
             .put("password", profile.password)

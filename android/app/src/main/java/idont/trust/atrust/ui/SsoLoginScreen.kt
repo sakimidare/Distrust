@@ -43,6 +43,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.unit.dp
 import idont.trust.atrust.model.ConnectionProfile
+import idont.trust.atrust.model.ServerScheme
 import java.net.URI
 import idont.trust.atrust.logging.Logger
 import idont.trust.atrust.ui.theme.DistrustTheme
@@ -255,7 +256,8 @@ private fun resolveLoginUrl(loginUrl: String, profile: ConnectionProfile): Strin
         .substringBefore(':')
     if (host.isBlank()) return ""
     val authority = if (profile.port == 443) host else "$host:${profile.port}"
-    val base = "https://$authority/"
+    val scheme = if (profile.serverScheme == ServerScheme.HTTP) "http" else "https"
+    val base = "$scheme://$authority/"
     if (loginUrl.isBlank()) {
         return Uri.parse(base).buildUpon()
             .encodedPath("/passport/v1/public/casLogin")
@@ -268,7 +270,7 @@ private fun resolveLoginUrl(loginUrl: String, profile: ConnectionProfile): Strin
 }
 
 private fun isServerUrl(uri: Uri, profile: ConnectionProfile): Boolean {
-    val expectedScheme = "https"
+    val expectedScheme = if (profile.serverScheme == ServerScheme.HTTP) "http" else "https"
     val actualPort = if (uri.port == -1) {
         if (uri.scheme.equals("https", ignoreCase = true)) 443 else 80
     } else {

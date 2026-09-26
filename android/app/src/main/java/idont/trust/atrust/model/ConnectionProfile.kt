@@ -15,6 +15,12 @@ enum class VpnProtocol {
 }
 
 @Serializable
+enum class ServerScheme {
+    HTTPS,
+    HTTP,
+}
+
+@Serializable
 enum class AppRoutingMode {
     ALL,
     ALLOW_ONLY,
@@ -28,6 +34,7 @@ data class ConnectionProfile(
     val mode: ConnectionMode = ConnectionMode.LOCAL_PROXY,
     val protocol: VpnProtocol = VpnProtocol.ATRUST,
     val server: String = "vpn.seu.edu.cn",
+    val serverScheme: ServerScheme = ServerScheme.HTTPS,
     val port: Int = 443,
     val username: String = "",
     val password: String = "",
