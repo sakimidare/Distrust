@@ -9,6 +9,7 @@ import idont.trust.atrust.core.CoreBridge
 import idont.trust.atrust.core.GoMobileCoreBridge
 import idont.trust.atrust.data.ProfileRepository
 import idont.trust.atrust.model.ConnectionMode
+import idont.trust.atrust.model.ProfileValidator
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -82,6 +83,12 @@ class LocalProxyService : Service() {
         scope.launch {
             val repository = ProfileRepository(applicationContext)
             val profile = repository.profile.first()
+            ProfileValidator.validate(profile).firstOrNull()?.let { issue ->
+                ConnectionRuntime.update(ConnectionState.Failed(issue.message))
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf()
+                return@launch
+            }
             core.startLocalProxy(profile, AuthRuntime::request).fold(
                 onSuccess = { proxy ->
                     if (proxy.clientData.isNotEmpty()) {

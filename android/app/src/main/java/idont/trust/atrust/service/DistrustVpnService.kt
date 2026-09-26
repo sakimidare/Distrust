@@ -9,6 +9,7 @@ import idont.trust.atrust.core.CoreBridge
 import idont.trust.atrust.core.GoMobileCoreBridge
 import idont.trust.atrust.data.ProfileRepository
 import idont.trust.atrust.model.ConnectionMode
+import idont.trust.atrust.model.ProfileValidator
 import idont.trust.atrust.model.AppRoutingMode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -93,6 +94,10 @@ class DistrustVpnService : VpnService() {
         scope.launch {
             val repository = ProfileRepository(applicationContext)
             val profile = repository.profile.first()
+            ProfileValidator.validate(profile).firstOrNull()?.let { issue ->
+                fail(issue.message)
+                return@launch
+            }
             if (profile.appRoutingMode == AppRoutingMode.ALLOW_ONLY && profile.routedPackages.isEmpty()) {
                 fail("按应用包含模式至少需要选择一个应用")
                 return@launch
