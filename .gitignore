@@ -50,6 +50,7 @@ CMakeUserPresets.json
 
 # Android / Gradle
 android/.gradle/
+android/.kotlin/
 android/.idea/
 android/local.properties
 android/**/build/
