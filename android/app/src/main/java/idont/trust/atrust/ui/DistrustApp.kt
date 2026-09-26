@@ -74,6 +74,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LargeFlexibleTopAppBar
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
@@ -520,6 +521,9 @@ private fun HomePage(
                 iconSize = 18.dp,
                 isError = statusError,
                 containerColor = statusContainer,
+                trailingContent = if (state is ConnectionState.Connecting || state is ConnectionState.Disconnecting) {
+                    { LoadingIndicator(Modifier.size(32.dp)) }
+                } else null,
             )
             Row(
                 modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
@@ -540,7 +544,11 @@ private fun HomePage(
                     shape = RoundedCornerShape(20.dp),
                     colors = if (statusError) ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error) else ButtonDefaults.buttonColors(),
                 ) {
-                    Icon(if (active) Icons.Rounded.Stop else Icons.TwoTone.Shield, null)
+                    if (state is ConnectionState.Connecting || state is ConnectionState.Disconnecting) {
+                        LoadingIndicator(Modifier.size(24.dp))
+                    } else {
+                        Icon(if (active) Icons.Rounded.Stop else Icons.TwoTone.Shield, null)
+                    }
                     Spacer(Modifier.width(6.dp))
                     Text(if (active) "断开" else "连接")
                 }
@@ -1128,6 +1136,13 @@ private fun AppRoutingSettingsPage(
                 EditorFields {
                     SectionTextField(query, { query = it }, "搜索应用")
                     if (!valid) Text("仅选中模式至少需要选择一个应用", color = MaterialTheme.colorScheme.error)
+                }
+            }
+            if (apps.isEmpty()) {
+                item {
+                    Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                        LoadingIndicator(Modifier.size(48.dp))
+                    }
                 }
             }
             items(visibleApps, key = { it.packageName }) { app ->

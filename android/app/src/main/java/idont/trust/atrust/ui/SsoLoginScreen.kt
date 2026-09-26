@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.safeDrawing
@@ -34,6 +35,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -108,7 +110,7 @@ fun SsoLoginScreen(
             IconButton(onClick = { webView?.goForward() }, enabled = webView?.canGoForward() == true) {
                 Icon(Icons.AutoMirrored.Filled.ArrowForward, "网页前进")
             }
-            IconButton(onClick = { webView?.reload() }) {
+            IconButton(onClick = { progress = 0; webView?.reload() }) {
                 Icon(Icons.Default.Refresh, "刷新")
             }
             Text(
@@ -137,7 +139,8 @@ fun SsoLoginScreen(
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text("SSO WebView 预览\n$currentUrl", style = MaterialTheme.typography.bodyLarge)
             }
-        } else AndroidView(
+        } else Box(Modifier.fillMaxSize()) {
+        AndroidView(
             modifier = Modifier.fillMaxSize(),
             factory = { context ->
                 WebView(context).apply {
@@ -182,6 +185,7 @@ fun SsoLoginScreen(
                             Logger.d("SSO", "Page started; url=$url")
                             currentUrl = url
                             pageError = null
+                            progress = 0
                         }
 
                         override fun onPageFinished(view: WebView, url: String) {
@@ -282,6 +286,12 @@ fun SsoLoginScreen(
                 destroyWhenDetached(releasedWebView)
             },
         )
+        if (progress in 0..99 && pageError == null) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                LoadingIndicator(Modifier.size(56.dp))
+            }
+        }
+        }
     }
 }
 
