@@ -13,6 +13,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -260,10 +261,11 @@ fun DistrustApp(
         }
         entry<AppRoute.Sso>(swipeDismiss = swipeDirection) {
             val payload = externalChallenge?.optJSONObject("payload")
-            SubPage(title = "SSO 登录", onBack = {
-                onCancelAuth()
-                pop()
-            }) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.surfaceContainer),
+            ) {
                 SsoLoginScreen(
                     loginUrl = payload?.optString("loginUrl").orEmpty(),
                     profile = profile,

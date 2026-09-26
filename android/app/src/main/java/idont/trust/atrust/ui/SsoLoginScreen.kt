@@ -21,10 +21,16 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -83,11 +89,18 @@ fun SsoLoginScreen(
         if (view?.canGoBack() == true) view.goBack() else onCancel()
     }
 
-    Column(Modifier.fillMaxSize()) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)),
+    ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
         ) {
+            IconButton(onClick = onCancel) {
+                Icon(Icons.Default.Close, "关闭 SSO 登录")
+            }
             IconButton(onClick = { webView?.goBack() }, enabled = webView?.canGoBack() == true) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, "网页后退")
             }
