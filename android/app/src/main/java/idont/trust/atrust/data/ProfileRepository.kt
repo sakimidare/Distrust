@@ -28,6 +28,9 @@ class ProfileRepository(private val context: Context) {
         secrets.writeClientData(profile.clientData)
         secrets.writeTotpSecret(profile.totpSecret)
         secrets.writeSocksPassword(profile.socksPassword)
+        secrets.writeEasyConnectTwfId(profile.easyConnectTwfId)
+        secrets.writeCertificateBase64(profile.certificateBase64)
+        secrets.writeCertificatePassword(profile.certificatePassword)
         context.profileDataStore.edit { values ->
             values[Keys.NAME] = profile.name
             values[Keys.ID] = profile.id
@@ -87,6 +90,9 @@ class ProfileRepository(private val context: Context) {
         username = values[Keys.USERNAME] ?: "",
         password = secrets.readPassword(),
         totpSecret = secrets.readTotpSecret(),
+        easyConnectTwfId = secrets.readEasyConnectTwfId(),
+        certificateBase64 = secrets.readCertificateBase64(),
+        certificatePassword = secrets.readCertificatePassword(),
         loginDomain = values[Keys.LOGIN_DOMAIN] ?: "hitcas",
         authType = values[Keys.AUTH_TYPE] ?: "psw",
         loginUrl = values[Keys.LOGIN_URL] ?: "",

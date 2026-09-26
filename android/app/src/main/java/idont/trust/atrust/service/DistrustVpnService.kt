@@ -39,6 +39,10 @@ class DistrustVpnService : VpnService() {
                         repository.updateClientData("")
                         fail("aTrust 会话已过期，请重新完成认证")
                     }
+                    is SessionEvent.CorePanic -> {
+                        Logger.e("VpnService", "Stopping VPN after core panic in ${event.operation}")
+                        fail("核心异常：${event.operation} · ${event.message}")
+                    }
                 }
             }
         }

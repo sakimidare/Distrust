@@ -19,10 +19,16 @@ class SecretStore(context: Context) {
     fun readClientData(): String = read(CLIENT_DATA)
     fun readTotpSecret(): String = read(TOTP_SECRET)
     fun readSocksPassword(): String = read(SOCKS_PASSWORD)
+    fun readEasyConnectTwfId(): String = read(EASYCONNECT_TWF_ID)
+    fun readCertificateBase64(): String = read(CERTIFICATE_BASE64)
+    fun readCertificatePassword(): String = read(CERTIFICATE_PASSWORD)
     fun writePassword(password: String) = write(PASSWORD, password)
     fun writeClientData(clientData: String) = write(CLIENT_DATA, clientData)
     fun writeTotpSecret(secret: String) = write(TOTP_SECRET, secret)
     fun writeSocksPassword(password: String) = write(SOCKS_PASSWORD, password)
+    fun writeEasyConnectTwfId(value: String) = write(EASYCONNECT_TWF_ID, value)
+    fun writeCertificateBase64(value: String) = write(CERTIFICATE_BASE64, value)
+    fun writeCertificatePassword(value: String) = write(CERTIFICATE_PASSWORD, value)
     fun readProfileCatalog(): String = read(PROFILE_CATALOG)
     fun writeProfileCatalog(catalog: String) = write(PROFILE_CATALOG, catalog)
 
@@ -83,5 +89,8 @@ class SecretStore(context: Context) {
         const val TOTP_SECRET = "default_profile_totp_secret"
         const val SOCKS_PASSWORD = "default_profile_socks_password"
         const val PROFILE_CATALOG = "encrypted_profile_catalog_v1"
+        const val EASYCONNECT_TWF_ID = "default_profile_easyconnect_twf_id"
+        const val CERTIFICATE_BASE64 = "default_profile_certificate_base64"
+        const val CERTIFICATE_PASSWORD = "default_profile_certificate_password"
     }
 }

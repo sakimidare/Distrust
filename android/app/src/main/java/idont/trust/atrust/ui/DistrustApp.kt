@@ -809,6 +809,14 @@ private fun EditorFields(content: @Composable ColumnScope.() -> Unit) {
 @Composable
 private fun ConnectionSettingsPage(stored: ConnectionProfile, onSave: (ConnectionProfile) -> Unit, onBack: () -> Unit) {
     var draft by remember(stored) { mutableStateOf(stored) }
+    val context = LocalContext.current
+    val certificateLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri ?: return@rememberLauncherForActivityResult
+        runCatching {
+            val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: error("证书读取失败")
+            draft = draft.copy(certificateBase64 = Base64.encodeToString(bytes, Base64.NO_WRAP))
+        }.onFailure { Logger.e("Certificate", "Failed to read PKCS#12 certificate", it) }
+    }
     val valid = draft.server.isNotBlank() && draft.port in 1..65535
     EditorScaffold("服务器与认证", valid, onBack, { onSave(draft); onBack() }) {
         item {
@@ -840,6 +848,31 @@ private fun ConnectionSettingsPage(stored: ConnectionProfile, onSave: (Connectio
                     SectionTextField(draft.authType, { draft = draft.copy(authType = it) }, "认证类型", supportingText = "cas、psw、smsCheckCode")
                     SectionTextField(draft.phone, { draft = draft.copy(phone = it) }, "手机号码（可选）")
                     SectionTextField(draft.totpSecret, { draft = draft.copy(totpSecret = it) }, "TOTP 密钥（可选）", visualTransformation = PasswordVisualTransformation())
+                } else {
+                    SectionTextField(draft.totpSecret, { draft = draft.copy(totpSecret = it) }, "TOTP 密钥（可选）", visualTransformation = PasswordVisualTransformation())
+                    SectionTextField(draft.easyConnectTwfId, { draft = draft.copy(easyConnectTwfId = it) }, "TwfID（可选）", supportingText = "填写后直接恢复已授权 EasyConnect 会话")
+                }
+            }
+        }
+        if (draft.protocol == VpnProtocol.EASYCONNECT) {
+            item {
+                SegmentedColumn("客户端证书") {
+                    item {
+                        SettingsBaseWidget(
+                            title = if (draft.certificateBase64.isBlank()) "选择 P12/PFX 证书" else "证书已载入",
+                            description = "用于服务器返回证书认证要求时继续登录",
+                            icon = Icons.TwoTone.Key,
+                            onClick = { certificateLauncher.launch(arrayOf("application/x-pkcs12", "application/octet-stream", "*/*")) },
+                        )
+                    }
+                    item(visible = draft.certificateBase64.isNotBlank()) {
+                        SettingsBaseWidget("移除证书", "清理当前档案中的证书数据", Icons.Rounded.DeleteSweep, isError = true, onClick = { draft = draft.copy(certificateBase64 = "", certificatePassword = "") })
+                    }
+                }
+            }
+            item {
+                EditorFields {
+                    SectionTextField(draft.certificatePassword, { draft = draft.copy(certificatePassword = it) }, "证书密码（可选）", enabled = draft.certificateBase64.isNotBlank(), visualTransformation = PasswordVisualTransformation())
                 }
             }
         }

@@ -1,6 +1,9 @@
 package idont.trust.atrust.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import android.util.Base64
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.spring
@@ -50,6 +53,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.platform.LocalContext
 import idont.trust.atrust.core.AuthMethod
 import idont.trust.atrust.model.ConnectionMode
 import idont.trust.atrust.model.ConnectionProfile
@@ -60,6 +64,7 @@ import idont.trust.atrust.ui.component.SegmentedColumn
 import idont.trust.atrust.ui.component.SettingsBaseWidget
 import idont.trust.atrust.ui.component.SegmentedControlWidget
 import idont.trust.atrust.ui.theme.DistrustTheme
+import idont.trust.atrust.logging.Logger
 
 private enum class WizardStep(val title: String) {
     PROTOCOL("选择协议"), SERVER("服务器"), AUTH("认证方式"), CREDENTIALS("账号凭据"), MODE("运行方式")
@@ -75,6 +80,14 @@ fun ConfigurationWizardScreen(
     previewStep: Int = 0,
 ) {
     var draft by remember(initial) { mutableStateOf(initial) }
+    val context = LocalContext.current
+    val certificateLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri ?: return@rememberLauncherForActivityResult
+        runCatching {
+            val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: error("证书读取失败")
+            draft = draft.copy(certificateBase64 = Base64.encodeToString(bytes, Base64.NO_WRAP))
+        }.onFailure { Logger.e("Certificate", "Failed to read EasyConnect certificate", it) }
+    }
     var step by remember(previewStep) { mutableStateOf(WizardStep.entries.getOrElse(previewStep) { WizardStep.PROTOCOL }) }
     val previous: () -> Unit = {
         step = when (step) {
@@ -185,7 +198,19 @@ fun ConfigurationWizardScreen(
                         item {
                             val normalized = draft.authType.removePrefix("auth/")
                             Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                when (normalized) {
+                                if (draft.protocol == VpnProtocol.EASYCONNECT) {
+                                    SectionTextField(draft.username, { draft = draft.copy(username = it) }, "账号")
+                                    SectionTextField(draft.password, { draft = draft.copy(password = it) }, "密码", visualTransformation = PasswordVisualTransformation())
+                                    SectionTextField(draft.totpSecret, { draft = draft.copy(totpSecret = it) }, "TOTP 密钥（可选）", visualTransformation = PasswordVisualTransformation())
+                                    SectionTextField(draft.easyConnectTwfId, { draft = draft.copy(easyConnectTwfId = it) }, "TwfID（可选）")
+                                    SettingsBaseWidget(
+                                        if (draft.certificateBase64.isBlank()) "选择 P12/PFX 证书" else "证书已载入",
+                                        "服务器要求证书认证时使用",
+                                        Icons.Rounded.Key,
+                                        onClick = { certificateLauncher.launch(arrayOf("application/x-pkcs12", "application/octet-stream", "*/*")) },
+                                    )
+                                    SectionTextField(draft.certificatePassword, { draft = draft.copy(certificatePassword = it) }, "证书密码（可选）", enabled = draft.certificateBase64.isNotBlank(), visualTransformation = PasswordVisualTransformation())
+                                } else when (normalized) {
                                     "smsCheckCode" -> SectionTextField(draft.phone, { draft = draft.copy(phone = it) }, "手机号码")
                                     "cas", "httpsOauth2" -> SettingsBaseWidget("SSO 登录", "连接时将在应用内打开安全登录页面", Icons.Rounded.Security)
                                     else -> {

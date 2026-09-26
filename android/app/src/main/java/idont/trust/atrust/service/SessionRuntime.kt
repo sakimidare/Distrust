@@ -11,6 +11,7 @@ import java.time.Instant
 sealed interface SessionEvent {
     data class Expired(val reason: String) : SessionEvent
     data class ClientDataUpdated(val clientData: String) : SessionEvent
+    data class CorePanic(val operation: String, val message: String, val stack: String) : SessionEvent
 }
 
 data class SessionHealth(
@@ -63,5 +64,11 @@ object SessionRuntime {
     fun resetHealth() {
         mutableHealth.value = SessionHealth()
         Logger.d("SessionHealth", "Health state reset for a new connection")
+    }
+
+    fun reportCorePanic(operation: String, message: String, stack: String) {
+        Logger.e("CorePanic", "Go core panic in $operation: $message\n$stack")
+        ConnectionRuntime.update(ConnectionState.Failed("核心异常：$operation · $message"))
+        mutableEvents.tryEmit(SessionEvent.CorePanic(operation, message, stack))
     }
 }

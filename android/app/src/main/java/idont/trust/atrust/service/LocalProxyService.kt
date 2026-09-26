@@ -39,6 +39,12 @@ class LocalProxyService : Service() {
                         stopForeground(STOP_FOREGROUND_REMOVE)
                         stopSelf()
                     }
+                    is SessionEvent.CorePanic -> {
+                        Logger.e("ProxyService", "Stopping proxy after core panic in ${event.operation}")
+                        core.stop()
+                        stopForeground(STOP_FOREGROUND_REMOVE)
+                        stopSelf()
+                    }
                 }
             }
         }

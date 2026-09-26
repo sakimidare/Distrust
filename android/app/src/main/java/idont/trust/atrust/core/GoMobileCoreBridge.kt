@@ -78,6 +78,14 @@ class GoMobileCoreBridge : CoreBridge {
                         )
                         null
                     }
+                    invoked.name.equals("onCorePanic", ignoreCase = true) -> {
+                        SessionRuntime.reportCorePanic(
+                            operation = values?.getOrNull(0)?.toString().orEmpty(),
+                            message = values?.getOrNull(1)?.toString().orEmpty(),
+                            stack = values?.getOrNull(2)?.toString().orEmpty(),
+                        )
+                        null
+                    }
                     invoked.name == "toString" -> "DistrustSessionCallback"
                     else -> null
                 }
@@ -273,6 +281,9 @@ class GoMobileCoreBridge : CoreBridge {
             .put("username", profile.username)
             .put("password", profile.password)
             .put("totpSecret", profile.totpSecret)
+            .put("twfId", profile.easyConnectTwfId)
+            .put("certificateBase64", profile.certificateBase64)
+            .put("certificatePassword", profile.certificatePassword)
             .put("authType", profile.authType)
             .put("loginDomain", profile.loginDomain)
             .put("phone", profile.phone)
