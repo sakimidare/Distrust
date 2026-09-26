@@ -62,6 +62,7 @@ import androidx.compose.material.icons.twotone.Shield
 import androidx.compose.material.icons.twotone.Sync
 import androidx.compose.material.icons.twotone.TaskAlt
 import androidx.compose.material.icons.twotone.Tune
+import androidx.compose.material.icons.twotone.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -462,14 +463,15 @@ private fun HomePage(
             statusError = false
         }
         is ConnectionState.Connected -> {
-            statusTitle = "已连接"
+            val healthWarning = health.consecutiveFailures > 0
+            statusTitle = if (healthWarning) "连接质量波动" else "已连接"
             statusDetail = buildString {
                 append(state.endpoint).append(" · ").append(health.detail)
                 health.latencyMillis?.let { append(" · ${it}ms") }
                 if (health.consecutiveFailures > 0) append(" · 连续 ${health.consecutiveFailures} 次异常")
             }
-            statusIcon = Icons.TwoTone.TaskAlt
-            statusContainer = if (darkTheme) ConnectedContainerDark else ConnectedContainerLight
+            statusIcon = if (healthWarning) Icons.TwoTone.Warning else Icons.TwoTone.TaskAlt
+            statusContainer = if (healthWarning) MaterialTheme.colorScheme.tertiaryContainer else if (darkTheme) ConnectedContainerDark else ConnectedContainerLight
             statusError = false
         }
         ConnectionState.Disconnecting -> {
