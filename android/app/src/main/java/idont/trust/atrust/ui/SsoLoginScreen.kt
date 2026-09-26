@@ -48,6 +48,7 @@ import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.unit.dp
+import androidx.core.view.doOnLayout
 import idont.trust.atrust.model.ConnectionProfile
 import idont.trust.atrust.model.ServerScheme
 import java.net.URI
@@ -229,7 +230,15 @@ fun SsoLoginScreen(
                         Logger.e("SSO", "Resolved login URL is empty")
                         pageError = "请检查服务器返回的 SSO 登录地址"
                     } else {
-                        loadUrl(resolvedLoginUrl)
+                        doOnLayout { laidOutWebView ->
+                            if (!completed && laidOutWebView.width > 0 && laidOutWebView.height > 0) {
+                                Logger.d(
+                                    "SSO",
+                                    "WebView measured; loading login page at ${laidOutWebView.width}x${laidOutWebView.height}",
+                                )
+                                loginWebView.loadUrl(resolvedLoginUrl)
+                            }
+                        }
                     }
                 }
             },
