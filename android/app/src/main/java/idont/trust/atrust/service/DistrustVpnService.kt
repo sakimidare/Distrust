@@ -150,17 +150,6 @@ class DistrustVpnService : VpnService() {
                 builder.addRoute("198.18.0.0", 16)
                 Logger.d("VpnService", "Added FakeDNS route 198.18.0.0/16")
             }
-            // With a downstream proxy, unmatched traffic must reach the policy
-            // Dialer so it can be handed to that proxy. Route everything into the
-            // TUN and let the core decide between the aTrust tunnel and the proxy.
-            if (profile.dialDirectProxy.isNotBlank()) {
-                builder.addRoute("0.0.0.0", 0)
-                Logger.w(
-                    "VpnService",
-                    "Full-tunnel route 0.0.0.0/0 added for downstream proxy ${profile.dialDirectProxy}. " +
-                        "Exclude the proxy app in 设置 → 按应用路由 to avoid a routing loop.",
-                )
-            }
             val dnsServers = negotiated.dnsServers.ifEmpty { profile.dnsServers }
             dnsServers.forEach { dns ->
                 runCatching { builder.addDnsServer(dns) }
