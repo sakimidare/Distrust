@@ -150,6 +150,15 @@ class DistrustVpnService : VpnService() {
                 builder.addRoute("198.18.0.0", 16)
                 Logger.d("VpnService", "Added FakeDNS route 198.18.0.0/16")
             }
+            // Diagnostics only: explain which flows can reach the downstream proxy.
+            val hasDefaultRoute = routes.any { it.trim() == "0.0.0.0/0" }
+            Logger.i(
+                "VpnService",
+                "Routing diagnosis: routes=${routes.size}, defaultRoute=$hasDefaultRoute, " +
+                    "downstreamProxy='${profile.dialDirectProxy}'. " +
+                    "Campus resource flows use the aTrust tunnel; public flows outside the routed " +
+                    "subnets bypass Distrust entirely, so they never reach the downstream proxy.",
+            )
             val dnsServers = negotiated.dnsServers.ifEmpty { profile.dnsServers }
             dnsServers.forEach { dns ->
                 runCatching { builder.addDnsServer(dns) }
