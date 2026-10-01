@@ -471,7 +471,6 @@ jobs:
       - build-linux-arm64
     env:
       ARCHIVE_PREFIX: ${{ github.event.repository.name }}-${{ github.event.release.tag_name || 'nightly' }}
-      AUR_PACKAGE_NAME: ez4connect
     steps:
       - uses: actions/checkout@v4
 
@@ -486,62 +485,3 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           gh release upload ${{ github.event.release.tag_name }} ${{ env.ARCHIVE_PREFIX }}-*
-
-      - name: Update AUR PKGBUILD
-        if: ${{ !github.event.release.prerelease }}
-        env:
-          AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
-        run: |
-          if [ -z "$AUR_SSH_PRIVATE_KEY" ]; then
-            echo "AUR_SSH_PRIVATE_KEY is not set, skipping AUR update."
-            exit 0
-          fi
-
-          install -m 700 -d ~/.ssh
-          printf '%s\n' "$AUR_SSH_PRIVATE_KEY" > ~/.ssh/aur
-          chmod 600 ~/.ssh/aur
-          ssh-keyscan aur.archlinux.org >> ~/.ssh/known_hosts
-
-          export GIT_SSH_COMMAND="ssh -i $HOME/.ssh/aur -o IdentitiesOnly=yes"
-          git clone ssh://aur@aur.archlinux.org/${{ env.AUR_PACKAGE_NAME }}.git aur
-          cd aur
-
-          sudo apt-get update
-          sudo apt-get install -y pacman-package-manager
-
-          VERSION="${RELEASE_TAG#v}"
-          PKG_VERSION="${VERSION%%-*}"
-          CURRENT_PKG_VERSION="$(sed -n 's/^pkgver=//p' PKGBUILD)"
-          CURRENT_PKG_REL="$(sed -n 's/^pkgrel=//p' PKGBUILD)"
-          if [ "$CURRENT_PKG_VERSION" = "$PKG_VERSION" ]; then
-            PKG_REL=$((CURRENT_PKG_REL + 1))
-          else
-            PKG_REL=1
-          fi
-
-          if grep -q '^_releasever=' PKGBUILD; then
-            sed -i "s/^_releasever=.*/_releasever=${VERSION}/" PKGBUILD
-          else
-            sed -i "/^pkgrel=/a _releasever=${VERSION}" PKGBUILD
-          fi
-          sed -i 's/${pkgver}/${_releasever}/g' PKGBUILD
-
-          SOURCE_URL="https://github.com/chenx-dust/EZ4Connect/archive/refs/tags/v${VERSION}.tar.gz"
-          SOURCE_SHA256="$(curl -L "$SOURCE_URL" | sha256sum | awk '{print $1}')"
-
-          sed -i "s/^pkgver=.*/pkgver=${PKG_VERSION}/" PKGBUILD
-          sed -i "s/^pkgrel=.*/pkgrel=${PKG_REL}/" PKGBUILD
-          sed -i "s/^sha256sums=.*/sha256sums=('${SOURCE_SHA256}')/" PKGBUILD
-          makepkg --printsrcinfo > .SRCINFO
-
-          if git diff --quiet; then
-            echo "No AUR changes to commit."
-            exit 0
-          fi
-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add PKGBUILD .SRCINFO
-          git commit -m "Update to ${VERSION}"
-          git push
