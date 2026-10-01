@@ -37,7 +37,7 @@ jobs:
           submodules: recursive
 
       - name: Set up JDK 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '21'
@@ -48,11 +48,37 @@ jobs:
           go-version-file: android/core/go.mod
           cache-dependency-path: android/core/go.sum
 
+      # The runner image already ships the Android SDK. We only wire up the
+      # environment here: android-actions/setup-android runs `sdkmanager tools`,
+      # and that legacy package no longer exists in the current SDK repository.
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install NDK
         run: |
+          sdkRoot="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
+          if [ -z "$sdkRoot" ] || [ ! -d "$sdkRoot" ]; then
+            for candidate in /usr/local/lib/android/sdk "$HOME/Android/Sdk"; do
+              if [ -d "$candidate" ]; then sdkRoot="$candidate"; break; fi
+            done
+          fi
+          if [ -z "$sdkRoot" ] || [ ! -d "$sdkRoot" ]; then
+            echo "::error::No Android SDK found on this runner."
+            exit 1
+          fi
+
+          cmdLineTools="$(ls -d "$sdkRoot"/cmdline-tools/*/bin 2>/dev/null | sort -V | tail -n 1 || true)"
+          echo "ANDROID_SDK_ROOT=$sdkRoot" >> "$GITHUB_ENV"
+          echo "ANDROID_HOME=$sdkRoot" >> "$GITHUB_ENV"
+          echo "$sdkRoot/platform-tools" >> "$GITHUB_PATH"
+          if [ -n "$cmdLineTools" ]; then
+            echo "$cmdLineTools" >> "$GITHUB_PATH"
+          else
+            echo "::error::cmdline-tools not found under $sdkRoot"
+            exit 1
+          fi
+          echo "Using Android SDK at $sdkRoot"
+
+      - name: Install platform and NDK
+        run: |
+          sdkmanager --version
           yes | sdkmanager --licenses > /dev/null 2>&1 || true
           sdkmanager --install "ndk;$ANDROID_NDK_VERSION" > /dev/null 2>&1 || \
             echo "::warning::NDK $ANDROID_NDK_VERSION was not downloadable; falling back to a preinstalled NDK."
