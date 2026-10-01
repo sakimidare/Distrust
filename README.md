@@ -1,18 +1,74 @@
 # Distrust
 
-Distrust 是从 [EZ4Connect](https://github.com/chenx-dust/EZ4Connect) 衍生的校园 VPN 客户端项目，
-同时包含原生 Android 客户端与桌面客户端。Android 客户端使用 Kotlin、Jetpack Compose、
-Material 3 和 `VpnService` 原生构建，包名为 `idont.trust.atrust`。
+Distrust 是一个校园 VPN 客户端项目，主力是**原生 Android 应用**，包名为
+`idont.trust.atrust`，使用 Kotlin、Jetpack Compose、Material 3 与 `VpnService`
+构建，核心为自维护的
+[DistrustCore](https://github.com/sakimidare/DistrustCore)（基于
+[Mythologyli/zju-connect](https://github.com/Mythologyli/zju-connect)）。
+
+项目同时保留上游 [EZ4Connect](https://github.com/chenx-dust/EZ4Connect) 的桌面代码，
+作为功能与兼容性参照，并复用同一套核心。
+
+> Android 版本仍处于早期开发阶段；认证流程与真机兼容性仍在逐步完善。
+
+## 运行模式
+
+Distrust 提供两种互斥的运行方式：
+
+1. **本地代理模式（默认）**：不占用 Android `VpnService`，在 `127.0.0.1` 暴露
+   SOCKS5/HTTP，供 Clash、Mihomo 或抓包软件作为上游代理。这是 Android 上实现
+   「aTrust + 代理 / 抓包」的主要方式。
+2. **系统 VPN 模式**：由 Distrust 独占 `VpnService`，直接对设备流量进行校园网分流。
+
+## 主要能力
+
+- Kotlin / Compose / Material 3 原生工程，动态配色、深色模式与自适应布局
+- Navigation Compose 顶层导航、返回栈与状态恢复
+- 配置向导：协议、服务器、认证方式发现、凭据、运行模式
+- 直接读取 aTrust 服务器公开的认证方式列表
+- 认证：aTrust 密码、EasyConnect、短信、TOTP、RADIUS、文本验证码、内嵌 SSO WebView
+  （在 3xx 导航加载前自动截获回调 URL）
+- Android Keystore 加密凭据、DataStore 配置存储
+- `VpnService` 授权与前台服务、本地代理前台服务
+- SOCKS5/HTTP 实际监听，Mihomo 配置片段导出
+- 全局日志同时输出 Logcat 与 UI，敏感字段脱敏
+- 基于核心的多来源 DNS、服务端资源分流与节点优选
+
+仍在完善：点选验证码画布、动态路由 / DNS / Fake IP 细节、自动重连与内置抓包。
 
 ## 仓库结构
 
 | 路径 | 说明 |
 | --- | --- |
-| [`android/`](android/) | 原生 Android 客户端。开发状态、核心集成与构建方式见 [`android/README.md`](android/README.md) |
-| [`android/core`](https://github.com/sakimidare/DistrustCore) | 核心子模块 **DistrustCore**，基于 [Mythologyli/zju-connect](https://github.com/Mythologyli/zju-connect) |
-| 仓库根目录 | 原 EZ4Connect 桌面客户端（Qt6），保留作为功能与兼容性参照，并使用本仓库维护的核心 |
+| [`android/`](android/) | 原生 Android 客户端，开发状态与构建方式见 [`android/README.md`](android/README.md) |
+| [`android/core`](https://github.com/sakimidare/DistrustCore) | 核心子模块 **DistrustCore** |
+| 仓库根目录 | 上游 EZ4Connect 桌面客户端（Qt6），保留作参照并复用本仓库核心 |
 
-> Android 版本仍处于早期开发阶段；桌面端沿用 EZ4Connect 的成熟结构，配套使用本仓库维护的核心。
+## Android 客户端
+
+### 构建
+
+```bash
+git submodule update --init --recursive
+cd android
+./gradlew assembleDebug
+```
+
+APK 输出：
+
+```text
+android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+`preBuild` 会先由固定源码生成 `android/core/build/distrust-core.aar` 再嵌入；已有 AAR 时
+可用 `-PskipGoCore` 跳过。没有 AAR 时 UI 仍可构建运行，但会明确显示「未安装核心」，
+不会伪造成功状态。
+
+### 工具链
+
+- Android Gradle Plugin 9.3.1、Gradle 9.5.0、JDK 21
+- compileSdk / targetSdk 37、Kotlin 2.4.20、Compose BOM 2026.08.00
+- Go 1.26+ 与 gomobile（用于内嵌核心）
 
 ## 核心（DistrustCore）
 
@@ -25,61 +81,17 @@ Material 3 和 `VpnService` 原生构建，包名为 `idont.trust.atrust`。
 
 构建与同步上游说明见 [DistrustCore](https://github.com/sakimidare/DistrustCore)。
 
-## 桌面客户端（原 EZ4Connect）
+## 桌面客户端（上游 EZ4Connect）
 
-*前身为 HITsz Connect for Windows*
+仓库根目录保留了上游 EZ4Connect 桌面客户端（Qt6），作为功能与兼容性参照，与本仓库核心配套使用。
 
-![Action](https://github.com/chenx-dust/EZ4Connect/actions/workflows/build.yml/badge.svg)
-![Release](https://img.shields.io/github/v/release/chenx-dust/EZ4Connect)
-![Downloads](https://img.shields.io/github/downloads/chenx-dust/EZ4Connect/total)
-![License](https://img.shields.io/github/license/chenx-dust/EZ4Connect)
-
-改进的 ZJU-Connect 图形界面
-
-## 🎉 现已正式提供 aTrust 支持
-
-如使用中遇到问题，可加入 ZJU-Connect 用户反馈 QQ 群 1037726410 交流。
-
-<div align="center">
-<img src="docs/main.png" width="600px">
-</div>
-
-## 使用方式
-
-在本项目的 [Releases](https://github.com/sakimidare/Distrust/releases) 页面下载构建产物；界面亦可从上游 [EZ4Connect Releases](https://github.com/chenx-dust/EZ4Connect/releases) 获取（均为绿色版，Windows 解压后双击 `EZ4Connect.exe`）：
-
-> 桌面端配套的核心为 `zju-connect v1.3.1-distrust`（含上述校园 DNS 修复）。如需自行替换，将编译好的 `zju-connect`（Windows 为 `zju-connect.exe`）放到 `EZ4Connect` 同目录即可。
-
-- **Windows 用户**：下载 `EZ4Connect-vX.X.X-windows-ARCH.zip` ，解压至同一目录下，双击运行 `EZ4Connect.exe` ；
-  - 如果遇到缺少 DLL 等问题，请先下载安装 Microsoft Visual C++ 可再发行程序包版本（[x64](https://aka.ms/vs/17/release/vc_redist.x64.exe) | [arm64](https://aka.ms/vs/17/release/vc_redist.arm64.exe)），再运行程序；
-- **macOS 用户**：下载 `EZ4Connect-vX.X.X-macOS-ARCH.dmg` ，将 EZ4Connect 移动到应用程序目录中；
-  - ~~如果遇到“Apple 无法检查 App 是否包含恶意软件”等报错，请参考 [Apple 支持](https://support.apple.com/zh-cn/guide/mac-help/mchleab3a043/mac) 进行操作。~~本软件已通过 Apple 官方公证，可直接运行；
-- **Linux 用户**：下载 `EZ4Connect-vX.X.X-linux-ARCH.AppImage` ，赋予执行权限，运行即可；
-  - AppImage x64 仅支持系统 `glibc >= 2.31` 的发行版，Ubuntu 22.04 及以上版本可以正常运行（受限于 GitHub Actions Runner）；
-  - AppImage arm64 仅支持系统 `glibc >= 2.38` 的发行版，Ubuntu 24.04 及以上版本可以正常运行（受限于 Qt 官方：[参考](https://doc.qt.io/qt-6/supported-platforms.html)）；
-  - Arch Linux 用户推荐使用 [AUR](https://aur.archlinux.org/packages/ez4connect) 安装；
-  - 如果遇到因依赖问题无法运行的情况，请自行编译运行。
-
-1. 跟随配置向导进行服务器与账户设置，或在“设置”中手动配置；
-
-2. 在主界面中点击“连接服务器”。如果只需进行校园网页浏览，则选择“设置系统代理”后即可使用。
-
-如果需要配合 Clash / Mihomo 进行高级的分流操作，可以参见： [高级使用方式](docs/ADVANCED_USAGE.md)
-
-## 路线图
-
-如有更多好的建议，可以在 Issue 中或是 OSA 群里提出！
-
-- [X] 支持 macOS 系统
-- [X] 支持 Linux 系统
-- [X] 支持手动设置 Proxy Bypass
-- [X] 上传 AUR 包
-- [ ] 使用密钥链存储密码等信息
-
-## 开发
-
-项目的分层、依赖方向和新增代码归属规则见
-[架构说明](docs/ARCHITECTURE.md)。
+- 上游项目：<https://github.com/chenx-dust/EZ4Connect>
+- 该客户端沿用上游的「改进的 ZJU-Connect 图形界面」，绿色版分发：Windows 解压后双击
+  `EZ4Connect.exe`，macOS 为 dmg，Linux 为 AppImage。
+- 本仓库产出的包内核心为 `zju-connect v1.3.1-distrust`（含上述 DNS 修复）。如需自行替换，
+  将编译好的 `zju-connect`（Windows 为 `zju-connect.exe`）放到 `EZ4Connect` 同目录即可。
+- 桌面上游的使用方式、路线图与架构说明以其仓库文档为准（架构见
+  [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)）。
 
 ## 许可证
 
@@ -87,7 +99,8 @@ Material 3 和 `VpnService` 原生构建，包名为 `idont.trust.atrust`。
 
 ## 致谢
 
-- [Mythologyli/ZJU-Connect-for-Windows](https://github.com/Mythologyli/ZJU-Connect-for-Windows)
 - [Mythologyli/zju-connect](https://github.com/Mythologyli/zju-connect)
+- [chenx-dust/EZ4Connect](https://github.com/chenx-dust/EZ4Connect)
+- [Mythologyli/ZJU-Connect-for-Windows](https://github.com/Mythologyli/ZJU-Connect-for-Windows)
 
 > 欢迎加入 HITSZ 开源技术协会 [@hitszosa](https://github.com/hitszosa)
