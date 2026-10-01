@@ -3,6 +3,8 @@ name: Android
 on:
   push:
     branches: [ master, dev ]
+    # Path filters are not evaluated for tag pushes, so a v* tag always builds.
+    tags: [ 'v*' ]
     paths:
       - 'android/**'
       - '.github/workflows/android.yml'
@@ -11,8 +13,6 @@ on:
       - 'android/**'
       - '.github/workflows/android.yml'
   workflow_dispatch:
-  release:
-    types: [ published ]
 
 concurrency:
   group: android-${{ github.workflow }}-${{ github.ref }}
@@ -146,8 +146,14 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      - name: Attach APK to GitHub release
-        if: github.event_name == 'release'
+      # A v* tag creates the release if it does not exist yet, or refreshes the
+      # assets if it already does.
+      - name: Publish GitHub release
+        if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
+          name: ${{ github.ref_name }}
+          tag_name: ${{ github.ref_name }}
           files: android/app/build/outputs/apk/release/*.apk
+          fail_on_unmatched_files: true
+          generate_release_notes: true
