@@ -1,17 +1,31 @@
 # Distrust
 
-Distrust 是从 EZ4Connect 衍生的 Android 校园 VPN 客户端项目。Android
-客户端使用 Kotlin、Jetpack Compose、Material 3 和 `VpnService` 原生构建，
-应用包名为 `idont.trust.atrust`。
+Distrust 是从 [EZ4Connect](https://github.com/chenx-dust/EZ4Connect) 衍生的校园 VPN 客户端项目，
+同时包含原生 Android 客户端与桌面客户端。Android 客户端使用 Kotlin、Jetpack Compose、
+Material 3 和 `VpnService` 原生构建，包名为 `idont.trust.atrust`。
 
-项目当前同时保留原 EZ4Connect 桌面代码作为功能和兼容性参照。Android 工程位于
-[`android/`](android/)，开发状态和核心集成说明见
-[`android/README.md`](android/README.md)。
+## 仓库结构
 
-> 当前 Android 版本仍处于早期开发阶段。仓库已固定 DistrustCore 子模块并加入
-> aTrust 密码认证及 SOCKS5/HTTP 移动接口；交互式认证和真机兼容性仍在逐步实现。
+| 路径 | 说明 |
+| --- | --- |
+| [`android/`](android/) | 原生 Android 客户端。开发状态、核心集成与构建方式见 [`android/README.md`](android/README.md) |
+| [`android/core`](https://github.com/sakimidare/DistrustCore) | 核心子模块 **DistrustCore**，基于 [Mythologyli/zju-connect](https://github.com/Mythologyli/zju-connect) |
+| 仓库根目录 | 原 EZ4Connect 桌面客户端（Qt6），保留作为功能与兼容性参照，并使用本仓库维护的核心 |
 
-## 原 EZ4Connect 桌面客户端
+> Android 版本仍处于早期开发阶段；桌面端沿用 EZ4Connect 的成熟结构，配套使用本仓库维护的核心。
+
+## 核心（DistrustCore）
+
+核心在上游 zju-connect 基础上，针对**校外访问校园网**增强了服务端资源感知的 DNS 解析：
+
+- 多来源并发解析：策略 DNS、`policy-secondary`（经隧道查询第二个策略 DNS）、系统 DNS、历史成功地址、自定义 DNS；
+- 命中服务端下发 IP Resource 的地址优先，避免解析到公网 WAF 地址；
+- `policy-secondary` 修复了校外**无法解析校园域名**的问题。部分学校（如 SEU）的第一个策略 DNS 校外不可直达，只有经隧道查询第二个策略 DNS 才能得到正确地址；
+- 桌面 CLI（`main.go`）与 Android 端使用同一套策略。
+
+构建与同步上游说明见 [DistrustCore](https://github.com/sakimidare/DistrustCore)。
+
+## 桌面客户端（原 EZ4Connect）
 
 *前身为 HITsz Connect for Windows*
 
@@ -32,7 +46,9 @@ Distrust 是从 EZ4Connect 衍生的 Android 校园 VPN 客户端项目。Androi
 
 ## 使用方式
 
-在本项目的 [Releases](https://github.com/chenx-dust/EZ4Connect/releases) 页面下载最新版本：
+在本项目的 [Releases](https://github.com/sakimidare/Distrust/releases) 页面下载构建产物；界面亦可从上游 [EZ4Connect Releases](https://github.com/chenx-dust/EZ4Connect/releases) 获取（均为绿色版，Windows 解压后双击 `EZ4Connect.exe`）：
+
+> 桌面端配套的核心为 `zju-connect v1.3.1-distrust`（含上述校园 DNS 修复）。如需自行替换，将编译好的 `zju-connect`（Windows 为 `zju-connect.exe`）放到 `EZ4Connect` 同目录即可。
 
 - **Windows 用户**：下载 `EZ4Connect-vX.X.X-windows-ARCH.zip` ，解压至同一目录下，双击运行 `EZ4Connect.exe` ；
   - 如果遇到缺少 DLL 等问题，请先下载安装 Microsoft Visual C++ 可再发行程序包版本（[x64](https://aka.ms/vs/17/release/vc_redist.x64.exe) | [arm64](https://aka.ms/vs/17/release/vc_redist.arm64.exe)），再运行程序；
