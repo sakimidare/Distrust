@@ -13,7 +13,6 @@ import androidx.activity.viewModels
 import androidx.core.content.FileProvider
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import idont.trust.atrust.model.ConnectionMode
 import idont.trust.atrust.model.ConnectionProfile
 import idont.trust.atrust.model.ProfileValidator
 import idont.trust.atrust.service.ConnectionServiceController
@@ -68,6 +67,7 @@ class MainActivity : ComponentActivity() {
                     authChallenge = authChallenge,
                     authDiscovery = authDiscovery,
                     onSaveProfile = viewModel::save,
+					onApplyProfile = ::applyProfile,
                     onSwitchProfile = {
                         ConnectionServiceController.stopAll(this)
                         viewModel.switchProfile(it)
@@ -107,15 +107,15 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun connect(profile: ConnectionProfile) {
-        Logger.i("MainActivity", "Connect requested; mode=${profile.mode}, protocol=${profile.protocol}, server=${profile.server}:${profile.port}")
+		Logger.i("MainActivity", "Connect requested; vpn=${profile.vpnEnabled}, proxy=${profile.localProxyEnabled}, protocol=${profile.protocol}, server=${profile.server}:${profile.port}")
         ProfileValidator.validate(profile).firstOrNull()?.let { issue ->
             Logger.w("MainActivity", "Connection validation failed; field=${issue.field}, message=${issue.message}")
             ConnectionRuntime.update(ConnectionState.Failed(issue.message))
             return
         }
         viewModel.save(profile)
-        if (profile.mode == ConnectionMode.LOCAL_PROXY) {
-            ConnectionServiceController.start(this, ConnectionMode.LOCAL_PROXY)
+		if (!profile.vpnEnabled) {
+			ConnectionServiceController.start(this)
             return
         }
         val permissionIntent: Intent? = VpnService.prepare(this)
@@ -127,6 +127,11 @@ class MainActivity : ComponentActivity() {
             vpnPermission.launch(permissionIntent)
         }
     }
+
+	private fun applyProfile(profile: ConnectionProfile) {
+		viewModel.save(profile)
+		DistrustVpnService.restart(this)
+	}
 
     private fun exportLogs(entries: List<LogEntry>) {
         runCatching {

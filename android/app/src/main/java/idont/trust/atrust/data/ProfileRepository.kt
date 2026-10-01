@@ -36,6 +36,8 @@ class ProfileRepository(private val context: Context) {
             values[Keys.NAME] = profile.name
             values[Keys.ID] = profile.id
             values[Keys.MODE] = profile.mode.name
+			values[Keys.VPN_ENABLED] = profile.vpnEnabled
+			values[Keys.LOCAL_PROXY_ENABLED] = profile.localProxyEnabled
             values[Keys.PROTOCOL] = profile.protocol.name
             values[Keys.SERVER] = profile.server.trim()
             values[Keys.SERVER_SCHEME] = profile.serverScheme.name
@@ -86,6 +88,8 @@ class ProfileRepository(private val context: Context) {
         id = values[Keys.ID] ?: "default",
         name = values[Keys.NAME] ?: "默认配置",
         mode = values[Keys.MODE].enumOrDefault(ConnectionMode.LOCAL_PROXY),
+		vpnEnabled = values[Keys.VPN_ENABLED] ?: (values[Keys.MODE].enumOrDefault(ConnectionMode.LOCAL_PROXY) == ConnectionMode.VPN),
+		localProxyEnabled = values[Keys.LOCAL_PROXY_ENABLED] ?: (values[Keys.MODE].enumOrDefault(ConnectionMode.LOCAL_PROXY) == ConnectionMode.LOCAL_PROXY),
         protocol = values[Keys.PROTOCOL].enumOrDefault(VpnProtocol.ATRUST),
         server = values[Keys.SERVER] ?: "vpn.seu.edu.cn",
         serverScheme = values[Keys.SERVER_SCHEME].enumOrDefault(ServerScheme.HTTPS),
@@ -143,6 +147,8 @@ class ProfileRepository(private val context: Context) {
         val NAME = stringPreferencesKey("name")
         val ID = stringPreferencesKey("id")
         val MODE = stringPreferencesKey("mode")
+		val VPN_ENABLED = booleanPreferencesKey("vpn_enabled")
+		val LOCAL_PROXY_ENABLED = booleanPreferencesKey("local_proxy_enabled")
         val PROTOCOL = stringPreferencesKey("protocol")
         val SERVER = stringPreferencesKey("server")
         val SERVER_SCHEME = stringPreferencesKey("server_scheme")

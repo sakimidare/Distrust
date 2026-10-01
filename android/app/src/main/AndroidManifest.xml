@@ -49,14 +49,14 @@
                 android:value="Campus VPN connection" />
         </service>
 
-        <service
-            android:name=".service.LocalProxyService"
-            android:exported="false"
-            android:foregroundServiceType="specialUse">
-            <property
-                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Local SOCKS5 and HTTP proxy for a user-initiated VPN session" />
-        </service>
+        <receiver
+            android:name=".service.DebugVpnControlReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="idont.trust.atrust.DEBUG_START_VPN" />
+                <action android:name="idont.trust.atrust.DEBUG_STOP_VPN" />
+            </intent-filter>
+        </receiver>
 
         <provider
             android:name="androidx.core.content.FileProvider"

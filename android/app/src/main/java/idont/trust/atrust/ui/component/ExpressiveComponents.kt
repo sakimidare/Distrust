@@ -3,6 +3,7 @@ package idont.trust.atrust.ui.component
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.Spring
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -34,17 +35,33 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.key
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.max
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.zIndex
+import kotlin.math.roundToInt
 import androidx.compose.ui.tooling.preview.Preview
 import idont.trust.atrust.ui.theme.ThemeConfig
 import idont.trust.atrust.ui.theme.DistrustTheme
@@ -89,30 +106,36 @@ fun SegmentedColumn(
                 color = MaterialTheme.colorScheme.primary,
             )
         }
-        segments.forEach { segment ->
-            val target = if (segment.visible) 1f else 0f
-            val progress by animateFloatAsState(
-                targetValue = target,
-                animationSpec = spring(dampingRatio = 0.55f, stiffness = 800f),
-                label = "segmentVisibility",
-            )
-            if (progress > 0.01f) {
-                val index = visible.indexOfFirst { it.key == segment.key }
-                val top = if (index == 0) 16.dp else 5.dp
-                val bottom = if (index == visible.lastIndex) 16.dp else 5.dp
-                val shape = RoundedCornerShape(top, top, bottom, bottom)
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(top = if (index <= 0) 0.dp else 2.dp)
-                        .alpha(progress),
-                ) {
-                    CompositionLocalProvider(LocalSegmentedItemShape provides shape) {
-                        segment.content()
-                    }
-                }
-            }
-        }
+		val floatSpring = spring<Float>(dampingRatio = 0.5f, stiffness = 800f)
+		val dpSpring = spring<Dp>(dampingRatio = 0.5f, stiffness = 800f)
+		val progresses = segments.map { segment -> key(segment.key) { animateFloatAsState(if (segment.visible) 1f else 0f, floatSpring, label = "progress") } }
+		val firstVisibleIndex = segments.indexOfFirst { it.visible }
+		val lastVisibleIndex = segments.indexOfLast { it.visible }
+		Layout(content = {
+			segments.forEachIndexed { index, segment -> key(segment.key) {
+				val top by animateDpAsState(if (index == firstVisibleIndex) 16.dp else 5.dp, dpSpring, label = "topRadius")
+				val bottom by animateDpAsState(if (index == lastVisibleIndex) 16.dp else 5.dp, dpSpring, label = "bottomRadius")
+				val gap by animateDpAsState(if (index == firstVisibleIndex) 0.dp else 2.dp, dpSpring, label = "gap")
+				val shape = RoundedCornerShape(max(0.dp, top), max(0.dp, top), max(0.dp, bottom), max(0.dp, bottom))
+				Box(Modifier.zIndex(if (segment.visible) (segments.size - index).toFloat() else -index.toFloat()).graphicsLayer {
+					val progress = progresses[index].value.coerceAtLeast(0f)
+					clip = true
+					this.shape = object : Shape {
+						override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density) = Outline.Rectangle(Rect(0f, 0f, size.width, size.height * progress))
+					}
+					alpha = (progress * 1.5f).coerceIn(0f, 1f)
+				}.padding(top = max(0.dp, gap))) {
+					CompositionLocalProvider(LocalSegmentedItemShape provides shape) { segment.content() }
+				}
+			} }
+		}) { measurables, constraints ->
+			val placeables = measurables.map { it.measure(constraints) }
+			var currentY = 0f
+			val positions = placeables.mapIndexed { index, placeable -> currentY.roundToInt().also { currentY += placeable.height * progresses[index].value } }
+			layout(constraints.maxWidth, currentY.roundToInt().coerceAtLeast(0)) {
+				placeables.forEachIndexed { index, placeable -> placeable.placeRelative(0, positions[index]) }
+			}
+		}
     }
 }
 
@@ -133,14 +156,18 @@ fun SettingsBaseWidget(
     trailingContent: (@Composable () -> Unit)? = null,
 ) {
     val interaction = androidx.compose.runtime.remember { MutableInteractionSource() }
+	val haptic = LocalHapticFeedback.current
     val pressed by interaction.collectIsPressedAsState()
     val baseShape = LocalSegmentedItemShape.current
     val pressedRadius by animateDpAsState(
-        if (pressed) 12.dp else 16.dp,
-        spring(dampingRatio = 0.62f, stiffness = 700f),
+		if (pressed) 16.dp else 0.dp,
+		spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
         label = "pressedRadius",
     )
-    val shape = if (pressed) RoundedCornerShape(pressedRadius) else baseShape
+	val shape = if (pressedRadius > 0.dp) RoundedCornerShape(pressedRadius) else baseShape
+	LaunchedEffect(pressed) {
+		if (pressed && enabled && onClick != null) haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
+	}
     val container = containerColor ?: when {
         selected -> MaterialTheme.colorScheme.primaryContainer
         else -> MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = ThemeConfig.cardAlpha)
@@ -192,20 +219,25 @@ fun SettingsBaseWidget(
     }
     val surfaceModifier = Modifier.fillMaxWidth().heightIn(min = if (description == null) 64.dp else 76.dp)
     if (onClick != null) {
-        Surface(
-            modifier = surfaceModifier,
-            shape = shape,
-            color = container,
-            contentColor = contentColor,
-            enabled = enabled,
-            onClick = onClick,
-            interactionSource = interaction,
-            content = itemContent,
-        )
+		Box(
+			modifier = surfaceModifier
+				.clip(shape)
+				.background(container)
+				.clickable(
+					enabled = enabled,
+					interactionSource = interaction,
+					indication = androidx.compose.material3.ripple(color = contentColor),
+					onClick = onClick,
+				),
+		) {
+			CompositionLocalProvider(LocalContentColor provides contentColor) {
+				itemContent()
+			}
+		}
     } else {
         Surface(
             modifier = surfaceModifier,
-            shape = baseShape,
+			shape = shape,
             color = container,
             contentColor = contentColor,
             content = itemContent,
@@ -228,22 +260,14 @@ fun SettingsSwitchWidget(
         haptic.performHapticFeedback(if (it) HapticFeedbackType.ToggleOn else HapticFeedbackType.ToggleOff)
         onCheckedChange(it)
     }
-    Box(
-        Modifier.toggleable(
-            value = checked,
-            enabled = enabled,
-            role = Role.Switch,
-            onValueChange = update,
-        ),
-    ) {
-        SettingsBaseWidget(
+	SettingsBaseWidget(
             title = title,
             description = description,
             icon = icon,
             leadingContent = leadingContent,
             enabled = enabled,
             onClick = { update(!checked) },
-        ) {
+	) {
             Switch(
                 checked = checked,
                 onCheckedChange = null,
@@ -255,8 +279,7 @@ fun SettingsSwitchWidget(
                     )
                 },
             )
-        }
-    }
+	}
 }
 
 @Composable

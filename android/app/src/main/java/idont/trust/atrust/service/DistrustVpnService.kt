@@ -24,6 +24,7 @@ class DistrustVpnService : VpnService() {
     private val scope = CoroutineScope(Job() + Dispatchers.IO)
     private val core: CoreBridge = GoMobileCoreBridge()
     private var tun: ParcelFileDescriptor? = null
+	private var connectJob: Job? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -52,6 +53,7 @@ class DistrustVpnService : VpnService() {
         Logger.d("VpnService", "onStartCommand; action=${intent?.action}, startId=$startId")
         when (intent?.action) {
             ACTION_STOP -> disconnect()
+			ACTION_RESTART -> restart()
             ACTION_START -> connect()
         }
         if (intent == null && ConnectionRuntime.state.value is ConnectionState.Disconnected) {
@@ -75,8 +77,8 @@ class DistrustVpnService : VpnService() {
     }
 
     private fun connect() {
-        if (ConnectionRuntime.state.value is ConnectionState.Connecting ||
-            ConnectionRuntime.state.value is ConnectionState.Connected
+		if (connectJob?.isActive == true ||
+			ConnectionRuntime.state.value is ConnectionState.Connected
         ) {
             Logger.w("VpnService", "Ignoring duplicate connect request; state=${ConnectionRuntime.state.value}")
             return
@@ -95,7 +97,9 @@ class DistrustVpnService : VpnService() {
         ConnectionRuntime.update(ConnectionState.Connecting(ConnectionMode.VPN))
         Logger.i("VpnService", "Starting system VPN connection")
 
-        scope.launch {
+		val generation = ConnectionRuntime.nextGeneration()
+		connectJob?.cancel()
+        connectJob = scope.launch {
             val repository = ProfileRepository(applicationContext)
             val profile = repository.profile.first()
             ProfileValidator.validate(profile).firstOrNull()?.let { issue ->
@@ -107,10 +111,16 @@ class DistrustVpnService : VpnService() {
                 return@launch
             }
             val negotiated = core.login(profile, AuthRuntime::request).getOrElse { error ->
+				if (!ConnectionRuntime.isCurrent(generation)) return@launch
                 Logger.e("VpnService", "Core login failed", error)
                 fail(error.userMessage())
                 return@launch
             }
+			if (!ConnectionRuntime.isCurrent(generation)) {
+				Logger.i("VpnService", "Discarding stale login result; generation=$generation")
+				core.stop()
+				return@launch
+			}
             if (negotiated.clientData.isNotEmpty()) {
                 repository.updateClientData(negotiated.clientData)
             }
@@ -124,6 +134,21 @@ class DistrustVpnService : VpnService() {
                 Logger.d("VpnService", "Domain resources=${negotiated.domainResources.joinToString()}")
             }
 
+			var proxyEndpoint = ""
+			if (profile.localProxyEnabled) {
+				val proxy = core.startProxyFrontend(profile).getOrElse { error ->
+					fail(error.userMessage())
+					return@launch
+				}
+				proxyEndpoint = proxy.socksAddress.ifEmpty { proxy.httpAddress }
+				Logger.i("VpnService", "Shared proxy frontend started; socks=${proxy.socksAddress}, http=${proxy.httpAddress}")
+			}
+			if (!profile.vpnEnabled) {
+				ConnectionRuntime.update(ConnectionState.Connected(ConnectionMode.LOCAL_PROXY, proxyEndpoint))
+				ConnectionRuntime.markActive(profile)
+				return@launch
+			}
+
             val builder = Builder()
                 .setSession("Distrust · ${profile.name}")
                 .setMtu(negotiated.mtu)
@@ -134,13 +159,25 @@ class DistrustVpnService : VpnService() {
                 AppRoutingMode.ALL -> runCatching { builder.addDisallowedApplication(packageName) }
                 AppRoutingMode.EXCLUDE -> (profile.routedPackages + packageName).forEach { appPackage ->
                     runCatching { builder.addDisallowedApplication(appPackage) }
-                        .onFailure { Logger.w("VpnService", "Ignoring unavailable excluded app '$appPackage'", it) }
+                        .onSuccess { Logger.i("VpnService", "Excluded app from VPN: $appPackage") }
+                        .onFailure {
+                            fail("无法排除应用 $appPackage：${it.message ?: "应用不存在"}")
+                            return@launch
+                        }
                 }
-                AppRoutingMode.ALLOW_ONLY -> profile.routedPackages.filterNot { it == packageName }.forEach { appPackage ->
+                AppRoutingMode.ALLOW_ONLY -> profile.routedPackages.forEach { appPackage ->
                     runCatching { builder.addAllowedApplication(appPackage) }
-                        .onFailure { Logger.w("VpnService", "Ignoring unavailable allowed app '$appPackage'", it) }
+                        .onSuccess { Logger.i("VpnService", "Allowed app in VPN: $appPackage") }
+                        .onFailure {
+                            fail("无法包含应用 $appPackage：${it.message ?: "应用不存在"}")
+                            return@launch
+                        }
                 }
             }
+            Logger.i(
+                "VpnService",
+                "Applied app routing mode=${profile.appRoutingMode}, packages=${profile.routedPackages.sorted().joinToString()}",
+            )
             val routes = negotiated.routes.ifEmpty { profile.routes }
             routes.forEach { route ->
                 parseCidr(route)?.let { (address, prefix) -> builder.addRoute(address, prefix) }
@@ -166,6 +203,12 @@ class DistrustVpnService : VpnService() {
             }
 
             tun = builder.establish()
+			if (!ConnectionRuntime.isCurrent(generation)) {
+				runCatching { tun?.close() }
+				tun = null
+				core.stop()
+				return@launch
+			}
             if (tun == null) {
                 fail("Android TUN 接口创建失败，请重新授权 VPN")
                 return@launch
@@ -175,6 +218,7 @@ class DistrustVpnService : VpnService() {
             ConnectionRuntime.update(
                 ConnectionState.Connected(ConnectionMode.VPN, negotiated.address),
             )
+			ConnectionRuntime.markActive(profile)
             Logger.i("VpnService", "VPN connected; address=${negotiated.address}, routes=${routes.size}, dns=${dnsServers.size}")
             val goOwnedDescriptor = ParcelFileDescriptor.dup(checkNotNull(tun).fileDescriptor)
             val goOwnedFd = goOwnedDescriptor.detachFd()
@@ -192,6 +236,9 @@ class DistrustVpnService : VpnService() {
     }
 
     private fun disconnect() {
+		ConnectionRuntime.invalidateGeneration()
+		connectJob?.cancel()
+		connectJob = null
         ConnectionRuntime.update(ConnectionState.Disconnecting)
         Logger.i("VpnService", "Disconnecting VPN")
         closeResources()
@@ -200,7 +247,20 @@ class DistrustVpnService : VpnService() {
         stopSelf()
     }
 
+	private fun restart() {
+		Logger.i("VpnService", "Restarting shared session with saved configuration")
+		ConnectionRuntime.update(ConnectionState.Connecting(ConnectionMode.VPN))
+		ConnectionRuntime.invalidateGeneration()
+		connectJob?.cancel()
+		connectJob = null
+		closeResources()
+		connect()
+	}
+
     private fun fail(message: String) {
+		ConnectionRuntime.invalidateGeneration()
+		connectJob?.cancel()
+		connectJob = null
         closeResources()
         Logger.e("VpnService", message)
         ConnectionRuntime.update(ConnectionState.Failed(message))
@@ -212,6 +272,7 @@ class DistrustVpnService : VpnService() {
         Logger.d("VpnService", "Closing TUN and core resources")
         runCatching { tun?.close() }
         tun = null
+		core.stopProxyFrontend()
         core.stop()
     }
 
@@ -228,6 +289,7 @@ class DistrustVpnService : VpnService() {
     companion object {
         private const val ACTION_START = "idont.trust.atrust.action.START_VPN"
         private const val ACTION_STOP = "idont.trust.atrust.action.STOP_VPN"
+		private const val ACTION_RESTART = "idont.trust.atrust.action.RESTART"
 
         fun start(context: Context) {
             ContextCompat.startForegroundService(
@@ -238,5 +300,12 @@ class DistrustVpnService : VpnService() {
 
         fun stopIntent(context: Context): Intent =
             Intent(context, DistrustVpnService::class.java).setAction(ACTION_STOP)
+
+		fun restart(context: Context) {
+			ContextCompat.startForegroundService(
+				context,
+				Intent(context, DistrustVpnService::class.java).setAction(ACTION_RESTART),
+			)
+		}
     }
 }

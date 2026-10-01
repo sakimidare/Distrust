@@ -7,6 +7,7 @@ data class ValidationIssue(val field: String, val message: String)
 
 object ProfileValidator {
     fun validate(profile: ConnectionProfile): List<ValidationIssue> = buildList {
+		if (!profile.vpnEnabled && !profile.localProxyEnabled) add(ValidationIssue("frontends", "至少需要启用系统 VPN 或本地代理中的一项"))
         if (profile.server.isBlank()) add(ValidationIssue("server", "服务器地址不能为空"))
         if (profile.port !in 1..65535) add(ValidationIssue("port", "服务器端口必须在 1～65535 之间"))
         if (profile.serverScheme == ServerScheme.HTTP && profile.certificateBase64.isNotBlank()) {
@@ -33,6 +34,12 @@ object ProfileValidator {
         }
         if (profile.tcpTunnelOnly && profile.protocol != VpnProtocol.ATRUST) {
             add(ValidationIssue("tcpTunnelOnly", "TCP Tunnel 模式需要 aTrust 协议"))
+        }
+		if (!profile.vpnEnabled && profile.appRoutingMode != AppRoutingMode.ALL) {
+            add(ValidationIssue("appRoutingMode", "按应用路由仅适用于系统 VPN 模式，本地代理无法识别请求所属应用"))
+        }
+        if (profile.appRoutingMode == AppRoutingMode.ALLOW_ONLY && profile.routedPackages.isEmpty()) {
+            add(ValidationIssue("appRoutingMode", "仅选中模式至少需要选择一个应用"))
         }
         profile.routes.filterNot(::isCidr).forEach {
             add(ValidationIssue("routes", "无效的 CIDR：$it"))

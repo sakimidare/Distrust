@@ -32,6 +32,8 @@ data class ConnectionProfile(
     val id: String = "default",
     val name: String = "默认配置",
     val mode: ConnectionMode = ConnectionMode.LOCAL_PROXY,
+	val vpnEnabled: Boolean = false,
+	val localProxyEnabled: Boolean = true,
     val protocol: VpnProtocol = VpnProtocol.ATRUST,
     val server: String = "vpn.seu.edu.cn",
     val serverScheme: ServerScheme = ServerScheme.HTTPS,

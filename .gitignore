@@ -60,3 +60,10 @@ android/app/release/
 android/core/build/
 *.apk
 *.aab
+
+# Signing material must never be committed. Use GitHub Actions secrets
+# (ANDROID_KEYSTORE_BASE64 and friends) or a local android/keystore.properties.
+android/keystore.properties
+*.jks
+*.keystore
+*.p12

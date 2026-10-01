@@ -1,0 +1,127 @@
+name: Android
+
+on:
+  push:
+    branches: [ master, dev ]
+    paths:
+      - 'android/**'
+      - '.github/workflows/android.yml'
+  pull_request:
+    paths:
+      - 'android/**'
+      - '.github/workflows/android.yml'
+  workflow_dispatch:
+  release:
+    types: [ published ]
+
+concurrency:
+  group: android-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  ANDROID_NDK_VERSION: '28.2.13676358'
+  GOPROXY: https://proxy.golang.org,direct
+
+jobs:
+  assemble:
+    name: Assemble release APK
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # android/core is a submodule that provides the Go mobile core.
+          submodules: recursive
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: android/core/go.mod
+          cache-dependency-path: android/core/go.sum
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install NDK
+        run: |
+          yes | sdkmanager --licenses > /dev/null 2>&1 || true
+          sdkmanager --install "ndk;$ANDROID_NDK_VERSION" > /dev/null 2>&1 || \
+            echo "::warning::NDK $ANDROID_NDK_VERSION was not downloadable; falling back to a preinstalled NDK."
+          sdkmanager --install "platforms;android-37" > /dev/null 2>&1 || \
+            echo "::warning::platforms;android-37 was not downloadable; Gradle will resolve the SDK package itself."
+
+          ndkDir="$ANDROID_SDK_ROOT/ndk/$ANDROID_NDK_VERSION"
+          if [ ! -d "$ndkDir" ]; then
+            ndkDir="$(ls -d "$ANDROID_SDK_ROOT"/ndk/* 2>/dev/null | sort -V | tail -n 1 || true)"
+          fi
+          if [ -z "$ndkDir" ] || [ ! -d "$ndkDir" ]; then
+            echo "::error::No Android NDK available; gomobile cannot build the Go core."
+            exit 1
+          fi
+          echo "Using NDK at $ndkDir"
+          echo "ANDROID_NDK_HOME=$ndkDir" >> "$GITHUB_ENV"
+
+      - name: Install gomobile
+        run: |
+          go install golang.org/x/mobile/cmd/gomobile@latest
+          go install golang.org/x/mobile/cmd/gobind@latest
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-home-cache-cleanup: true
+
+      # The keystore is never committed. Store it base64-encoded in the
+      # ANDROID_KEYSTORE_BASE64 repository secret and it is decoded only on the
+      # runner. Without the secret the release APK falls back to debug signing.
+      - name: Decode release keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "::warning::ANDROID_KEYSTORE_BASE64 is not configured; the release APK will be debug-signed."
+            exit 0
+          fi
+          mkdir -p "$RUNNER_TEMP/signing"
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/signing/release.jks"
+          echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/signing/release.jks" >> "$GITHUB_ENV"
+
+      - name: Assemble release
+        working-directory: android
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: ./gradlew --no-daemon --stacktrace assembleRelease
+
+      - name: Show APK signature
+        working-directory: android
+        run: |
+          apk="$(ls app/build/outputs/apk/release/*.apk | head -n 1)"
+          echo "APK: $apk"
+          buildTools="$(ls -d "$ANDROID_SDK_ROOT"/build-tools/* | sort -V | tail -n 1)"
+          "$buildTools/apksigner" verify --print-certs "$apk" | head -n 5 || true
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: distrust-release-apk
+          path: android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Attach APK to GitHub release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: android/app/build/outputs/apk/release/*.apk

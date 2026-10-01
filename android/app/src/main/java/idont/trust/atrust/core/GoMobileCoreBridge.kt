@@ -29,6 +29,9 @@ class GoMobileCoreBridge : CoreBridge {
     private val startProxy: Method? = mobileClass.method("startProxy", String::class.java)
     private val prepareWithCallback: Method? = mobileClass.methodNamed("prepareWithCallback", 2)
     private val startProxyWithCallback: Method? = mobileClass.methodNamed("startProxyWithCallback", 2)
+	private val startProxyFrontend: Method? = mobileClass.method("startProxyFrontend", String::class.java)
+	private val stopProxyFrontend: Method? = mobileClass.method("stopProxyFrontend")
+	private val stopStack: Method? = mobileClass.method("stopStack")
     private val fetchAuthMethods: Method? = mobileClass.methodNamed("fetchAuthMethods", 2)
     private val fetchAuthMethodsWithScheme: Method? = mobileClass.methodNamed("fetchAuthMethodsWithScheme", 3)
     private val setLogCallback: Method? = mobileClass.methodNamed("setLogCallback", 1)
@@ -238,6 +241,16 @@ class GoMobileCoreBridge : CoreBridge {
         ).also { logResourceSnapshot() }
     }
 
+	override fun startProxyFrontend(profile: ConnectionProfile): Result<ProxySession> = runCatching {
+		val method = checkNotNull(startProxyFrontend) { "当前核心不支持共享本地代理入口" }
+		val result = JSONObject(method.invoke(null, profileConfig(profile).toString())?.toString().orEmpty())
+		check(result.optBoolean("ok")) { result.optString("errorMessage", "本地代理入口启动失败") }
+		ProxySession(result.optString("socksAddress"), result.optString("httpAddress"))
+	}
+
+	override fun stopProxyFrontend() { runCatching { stopProxyFrontend?.invoke(null) } }
+	override fun stopTun() { runCatching { stopStack?.invoke(null) } }
+
     override fun fakeDnsSnapshot(): Result<Map<String, String>> = runCatching {
         val method = checkNotNull(fakeDnsSnapshot) { "当前核心不支持读取 FakeDNS" }
         val result = JSONObject(method.invoke(null)?.toString().orEmpty())
@@ -277,7 +290,25 @@ class GoMobileCoreBridge : CoreBridge {
         onChallenge: (String) -> String = { "" },
     ): JSONObject {
         dnsNamespace = "${profile.server}:${profile.port}"
-        val config = JSONObject()
+		val config = profileConfig(profile)
+		val arguments = if (method.parameterCount == 2) {
+			val callbackType = method.parameterTypes[1]
+			val callback = Proxy.newProxyInstance(callbackType.classLoader, arrayOf(callbackType)) { _, invoked, values ->
+				when {
+					invoked.name.equals("onChallenge", ignoreCase = true) -> onChallenge(values?.firstOrNull()?.toString().orEmpty())
+					invoked.name == "toString" -> "DistrustChallengeCallback"
+					else -> null
+				}
+			}
+			arrayOf(config.toString(), callback)
+		} else arrayOf(config.toString())
+		val result = JSONObject(method.invoke(null, *arguments)?.toString().orEmpty())
+		check(result.optBoolean("ok")) { result.optString("errorMessage", "核心操作失败") }
+		Logger.d("GoCore", "Core operation succeeded; method=${method.name}")
+		return result
+	}
+
+	private fun profileConfig(profile: ConnectionProfile): JSONObject = JSONObject()
             .put("protocol", if (profile.protocol == VpnProtocol.ATRUST) "atrust" else "easyconnect")
             .put("server", profile.server)
             .put("serverScheme", profile.serverScheme.name.lowercase())
@@ -316,30 +347,6 @@ class GoMobileCoreBridge : CoreBridge {
             .put("sessionRefreshInterval", profile.sessionRefreshInterval)
             .put("customDns", JSONObject(profile.customDns))
             .put("customProxyDomains", JSONArray(profile.customProxyDomains))
-        val arguments = if (method.parameterCount == 2) {
-            val callbackType = method.parameterTypes[1]
-            val callback = Proxy.newProxyInstance(
-                callbackType.classLoader,
-                arrayOf(callbackType),
-            ) { _, invoked, values ->
-                when {
-                    invoked.name.equals("onChallenge", ignoreCase = true) ->
-                        onChallenge(values?.firstOrNull()?.toString().orEmpty())
-                    invoked.name == "toString" -> "DistrustChallengeCallback"
-                    else -> null
-                }
-            }
-            arrayOf(config.toString(), callback)
-        } else {
-            arrayOf(config.toString())
-        }
-        val result = JSONObject(method.invoke(null, *arguments)?.toString().orEmpty())
-        check(result.optBoolean("ok")) {
-            result.optString("errorMessage", "核心操作失败")
-        }
-        Logger.d("GoCore", "Core operation succeeded; method=${method.name}")
-        return result
-    }
 
     private fun JSONObject.stringList(name: String): List<String> {
         val values = optJSONArray(name) ?: return emptyList()

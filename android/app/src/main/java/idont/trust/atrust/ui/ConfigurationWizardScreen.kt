@@ -55,7 +55,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.platform.LocalContext
 import idont.trust.atrust.core.AuthMethod
-import idont.trust.atrust.model.ConnectionMode
 import idont.trust.atrust.model.ConnectionProfile
 import idont.trust.atrust.model.ProfileValidator
 import idont.trust.atrust.model.VpnProtocol
@@ -63,6 +62,7 @@ import idont.trust.atrust.model.ServerScheme
 import idont.trust.atrust.ui.component.SectionTextField
 import idont.trust.atrust.ui.component.SegmentedColumn
 import idont.trust.atrust.ui.component.SettingsBaseWidget
+import idont.trust.atrust.ui.component.SettingsSwitchWidget
 import idont.trust.atrust.ui.component.SegmentedControlWidget
 import idont.trust.atrust.ui.theme.DistrustTheme
 import idont.trust.atrust.logging.Logger
@@ -275,14 +275,11 @@ fun ConfigurationWizardScreen(
                                 item {
                                     SegmentedControlWidget("运行模式") {
                                         Text("本地代理适合搭配 Clash/Mihomo；系统 VPN 可直接接管应用流量。", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(top = 16.dp)) {
-                                            ConnectionMode.entries.forEachIndexed { index, mode ->
-                                                SegmentedButton(draft.mode == mode, { draft = draft.copy(mode = mode) }, SegmentedButtonDefaults.itemShape(index, ConnectionMode.entries.size)) { Text(if (mode == ConnectionMode.LOCAL_PROXY) "本地代理" else "系统 VPN") }
-                                            }
-                                        }
+										SettingsSwitchWidget("系统 VPN", "接管应用流量", Icons.Rounded.Security, draft.vpnEnabled) { draft = draft.copy(vpnEnabled = it) }
+										SettingsSwitchWidget("本地代理", "提供 SOCKS5/HTTP 端口", Icons.Rounded.Lan, draft.localProxyEnabled) { draft = draft.copy(localProxyEnabled = it) }
                                     }
                                 }
-                                item(visible = draft.mode == ConnectionMode.LOCAL_PROXY) {
+								item(visible = draft.localProxyEnabled) {
                                     Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                         SectionTextField(draft.socksPort.toString(), { it.toIntOrNull()?.let { v -> draft = draft.copy(socksPort = v) } }, "SOCKS5", Modifier.weight(1f))
                                         SectionTextField(draft.httpPort.toString(), { it.toIntOrNull()?.let { v -> draft = draft.copy(httpPort = v) } }, "HTTP", Modifier.weight(1f))
@@ -337,7 +334,8 @@ private fun WizardNavigation(
 
 private val wizardPreviewProfile = ConnectionProfile(
     name = "东南大学",
-    mode = ConnectionMode.VPN,
+	vpnEnabled = true,
+	localProxyEnabled = false,
     server = "vpn.seu.edu.cn",
     username = "preview-user",
     loginDomain = "seucas",

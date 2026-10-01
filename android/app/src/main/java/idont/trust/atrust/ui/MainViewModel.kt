@@ -51,7 +51,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun save(profile: ConnectionProfile) {
-        Logger.i("Profile", "Saving profile; mode=${profile.mode}, protocol=${profile.protocol}, server=${profile.server}:${profile.port}")
+		Logger.i("Profile", "Saving profile; vpn=${profile.vpnEnabled}, proxy=${profile.localProxyEnabled}, protocol=${profile.protocol}, server=${profile.server}:${profile.port}")
         viewModelScope.launch {
             runCatching { repository.save(profile) }
                 .onSuccess {
